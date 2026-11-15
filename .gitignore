@@ -49,3 +49,5 @@ android/.gradle/
 
 # Widget Preview related
 .widget_preview/
+
+sqlite_mcp_server.db
