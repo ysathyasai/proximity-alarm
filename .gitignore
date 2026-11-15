@@ -10,3 +10,5 @@ android/local.properties
 android/key.properties
 android/app/release/
 .wrapper_bootstrap/
+
+sqlite_mcp_server.db
