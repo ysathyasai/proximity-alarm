@@ -104,3 +104,4 @@ class PermissionUtils {
     return await Geolocator.openLocationSettings();
   }
 }
+

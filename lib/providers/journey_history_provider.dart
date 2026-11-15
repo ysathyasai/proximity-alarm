@@ -37,3 +37,4 @@ class JourneyHistoryProvider with ChangeNotifier {
     await _repository.saveJourneyHistory(_history);
   }
 }
+

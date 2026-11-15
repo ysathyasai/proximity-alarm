@@ -121,24 +121,38 @@ void main() {
       expect(etaMoving, equals(6)); // 6 km at 60 km/h = 6 mins
     });
 
-    test('shouldTriggerAlarm triggers when distance is within radius', () {
+    test('shouldTriggerAlarm triggers when distance is within radius regardless of timer', () {
       final shouldTrigger = GeoUtils.shouldTriggerAlarm(
         distanceMeters: 850.0,
         radiusMeters: 1000.0,
         etaMinutes: 12,
         prepWindowMinutes: 5,
+        useTimerAlert: false,
       );
       expect(shouldTrigger, isTrue);
     });
 
-    test('shouldTriggerAlarm triggers when ETA is within prep window', () {
-      final shouldTrigger = GeoUtils.shouldTriggerAlarm(
+    test('shouldTriggerAlarm evaluates timer ONLY when useTimerAlert is true', () {
+      // Outside radius, but ETA is within 5-min prep window
+      // When useTimerAlert is FALSE (default): does NOT trigger on timer
+      final noTimerTrigger = GeoUtils.shouldTriggerAlarm(
         distanceMeters: 3500.0,
         radiusMeters: 2000.0,
         etaMinutes: 4,
         prepWindowMinutes: 5,
+        useTimerAlert: false,
       );
-      expect(shouldTrigger, isTrue);
+      expect(noTimerTrigger, isFalse);
+
+      // When useTimerAlert is TRUE: DOES trigger on timer!
+      final timerTrigger = GeoUtils.shouldTriggerAlarm(
+        distanceMeters: 3500.0,
+        radiusMeters: 2000.0,
+        etaMinutes: 4,
+        prepWindowMinutes: 5,
+        useTimerAlert: true,
+      );
+      expect(timerTrigger, isTrue);
     });
 
     test('shouldTriggerAlarm does NOT trigger when far outside radius and prep window', () {
@@ -147,6 +161,7 @@ void main() {
         radiusMeters: 2000.0,
         etaMinutes: 18,
         prepWindowMinutes: 5,
+        useTimerAlert: true,
       );
       expect(shouldTrigger, isFalse);
     });

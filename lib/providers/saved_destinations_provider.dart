@@ -53,3 +53,4 @@ class SavedDestinationsProvider with ChangeNotifier {
     await _repository.saveSavedDestinations(_destinations);
   }
 }
+

@@ -110,3 +110,4 @@ class NotificationService {
     _actionController.close();
   }
 }
+

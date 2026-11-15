@@ -46,6 +46,7 @@ dependencies:
   flutter_foreground_task: ^11.0.3
   intl: ^0.20.3
   uuid: ^4.6.0
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

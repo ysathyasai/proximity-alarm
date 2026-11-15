@@ -38,6 +38,8 @@ class JourneyProvider with ChangeNotifier {
   Destination? _selectedDestination;
   double _radiusMeters = AppConstants.defaultRadiusMeters;
   int _prepWindowMinutes = AppConstants.defaultPrepWindowMinutes;
+  bool _useTimerAlert = false;
+  bool _batterySaverMode = false;
 
   LatLng? _currentPosition;
   double _currentAccuracy = 0.0;
@@ -84,6 +86,8 @@ class JourneyProvider with ChangeNotifier {
   Destination? get destination => _selectedDestination;
   double get radiusMeters => _radiusMeters;
   int get prepWindowMinutes => _prepWindowMinutes;
+  bool get useTimerAlert => _useTimerAlert;
+  bool get batterySaverMode => _batterySaverMode;
   LatLng? get currentPosition => _currentPosition;
   double get currentAccuracy => _currentAccuracy;
   double get currentSpeedMps => _currentSpeedMps;
@@ -148,6 +152,19 @@ class JourneyProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void setUseTimerAlert(bool enabled) {
+    _useTimerAlert = enabled;
+    notifyListeners();
+  }
+
+  void setBatterySaverMode(bool enabled) {
+    _batterySaverMode = enabled;
+    if (_remainingDistanceMeters > 0) {
+      _locationService.updateDistanceFilter(_getAdaptiveDistanceFilter(_remainingDistanceMeters));
+    }
+    notifyListeners();
+  }
+
   Future<void> _calculateInitialRoute() async {
     if (_currentPosition == null || _selectedDestination == null) return;
 
@@ -183,6 +200,11 @@ class JourneyProvider with ChangeNotifier {
     _hasTriggeredAlarmThisJourney = false;
     _journeyStartTime = DateTime.now();
     _warningMessage = null;
+
+    if (settings != null) {
+      _useTimerAlert = settings.useTimerAlert;
+      _batterySaverMode = settings.batterySaverMode;
+    }
 
     // Check if starting inside or dangerously close to alert radius
     if (_currentPosition != null) {
@@ -260,6 +282,7 @@ class JourneyProvider with ChangeNotifier {
         radiusMeters: _radiusMeters,
         etaMinutes: _estimatedArrivalMinutes,
         prepWindowMinutes: _prepWindowMinutes,
+        useTimerAlert: _useTimerAlert,
       );
 
       if (shouldTrigger) {
@@ -271,14 +294,26 @@ class JourneyProvider with ChangeNotifier {
   }
 
   int _getAdaptiveDistanceFilter(double distanceMeters) {
-    if (distanceMeters > AppConstants.farDistanceThresholdMeters) {
-      return 100; // Far: 100m filter
-    } else if (distanceMeters > AppConstants.mediumDistanceThresholdMeters) {
-      return 50; // Medium: 50m filter
-    } else if (distanceMeters > AppConstants.closeDistanceThresholdMeters) {
-      return 15; // Close: 15m filter
+    if (_batterySaverMode) {
+      if (distanceMeters > AppConstants.farDistanceThresholdMeters) {
+        return 250; // Relaxed 250m polling when far
+      } else if (distanceMeters > AppConstants.mediumDistanceThresholdMeters) {
+        return 100; // 100m polling
+      } else if (distanceMeters > AppConstants.closeDistanceThresholdMeters) {
+        return 35; // 35m polling
+      } else {
+        return 10; // 10m polling in alert zone
+      }
     } else {
-      return 5; // Very close: 5m filter for maximum precision
+      if (distanceMeters > AppConstants.farDistanceThresholdMeters) {
+        return 100; // Far: 100m filter
+      } else if (distanceMeters > AppConstants.mediumDistanceThresholdMeters) {
+        return 50; // Medium: 50m filter
+      } else if (distanceMeters > AppConstants.closeDistanceThresholdMeters) {
+        return 15; // Close: 15m filter
+      } else {
+        return 5; // Very close: 5m filter for maximum precision
+      }
     }
   }
 

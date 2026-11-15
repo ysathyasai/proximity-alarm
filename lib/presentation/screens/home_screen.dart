@@ -5,9 +5,9 @@ import '../../core/utils/formatters.dart';
 import '../../providers/journey_provider.dart';
 import '../../providers/saved_destinations_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../services/map_launcher_service.dart';
 import '../widgets/battery_guidance_sheet.dart';
 import '../widgets/destination_search_bar.dart';
-import '../widgets/proximity_map.dart';
 import '../widgets/radius_selector.dart';
 import 'active_journey_screen.dart';
 import 'alarm_screen.dart';
@@ -30,7 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final journeyProvider = context.watch<JourneyProvider>();
 
-    // If alarm is currently active, pop or present AlarmScreen immediately
+    // If alarm is active, present AlarmScreen immediately
     if (journeyProvider.isAlarmActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).push(
@@ -118,7 +118,7 @@ class HomeMainView extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            tooltip: 'Battery guidance',
+            tooltip: 'Battery Optimization Guidance',
             icon: const Icon(Icons.battery_saver_rounded),
             onPressed: () => BatteryGuidanceSheet.show(context),
           ),
@@ -236,7 +236,7 @@ class HomeMainView extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // 3. Saved Locations Carousel
+          // 3. Quick Saved Locations Carousel
           if (saved.destinations.isNotEmpty) ...[
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -303,91 +303,141 @@ class HomeMainView extends StatelessWidget {
             const SizedBox(height: 16),
           ],
 
-          // 4. Map Preview Card
+          // 4. Optimized Destination Card (Zero Lag, No Background Tile Jank)
           Card(
             clipBehavior: Clip.antiAlias,
-            child: SizedBox(
-              height: 220,
-              child: Stack(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ProximityMap(
-                    userPosition: journey.currentPosition,
-                    destinationPosition: journey.destination?.latLng,
-                    radiusMeters: journey.radiusMeters,
-                    routePoints: journey.routePolyline,
-                    isInteractive: false,
-                    showRecenterButtons: false,
-                  ),
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: FilledButton.tonalIcon(
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                      ),
-                      icon: const Icon(Icons.map_rounded, size: 16),
-                      label: const Text('Interactive Map',
-                          style: TextStyle(fontSize: 12)),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const DestinationPickerScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  if (journey.destination != null)
-                    Positioned(
-                      bottom: 12,
-                      left: 12,
-                      right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: (isDark
-                                  ? const Color(0xFF0F172A)
-                                  : Colors.white)
-                              .withValues(alpha: 0.92),
+                          color: (journey.destination != null
+                                  ? const Color(0xFFDC2626)
+                                  : theme.colorScheme.primary)
+                              .withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 6,
-                            ),
-                          ],
                         ),
-                        child: Row(
+                        child: Icon(
+                          journey.destination != null
+                              ? Icons.pin_drop_rounded
+                              : Icons.map_rounded,
+                          color: journey.destination != null
+                              ? const Color(0xFFDC2626)
+                              : theme.colorScheme.primary,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.pin_drop_rounded,
-                                color: Color(0xFFDC2626), size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                journey.destination!.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
                             Text(
-                              Formatters.formatDistance(
-                                  journey.remainingDistanceMeters),
-                              style: TextStyle(
+                              journey.destination?.name ?? 'No Destination Selected',
+                              style: const TextStyle(
                                 fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                                color: theme.colorScheme.primary,
+                                fontSize: 16,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              journey.destination?.address ??
+                                  'Choose from search or tap to select on map',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
                       ),
-                    ),
+                      if (journey.destination != null && journey.remainingDistanceMeters > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            Formatters.formatDistance(journey.remainingDistanceMeters),
+                            style: TextStyle(
+                              color: theme.colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Actions: Interactive Map & Use Downloaded Google Maps
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.map_outlined, size: 18),
+                          label: const Text('Pick on Map', style: TextStyle(fontSize: 13)),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const DestinationPickerScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.explore_rounded, size: 18, color: Color(0xFF10B981)),
+                          label: const Text('Offline Google Maps', style: TextStyle(fontSize: 12)),
+                          onPressed: () {
+                            if (journey.destination != null) {
+                              MapLauncherService.openGoogleMaps(
+                                latitude: journey.destination!.latitude,
+                                longitude: journey.destination!.longitude,
+                                label: journey.destination!.name,
+                              );
+                            } else if (journey.currentPosition != null) {
+                              MapLauncherService.openGoogleMaps(
+                                latitude: journey.currentPosition!.latitude,
+                                longitude: journey.currentPosition!.longitude,
+                                label: 'My Location',
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Select a destination first')),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -408,74 +458,117 @@ class HomeMainView extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // 6. Preparation Window Configuration
+          // 6. Configurable ETA Timer Option (Trigger on timer only when toggled on)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Flexible(
-                        child: Text(
-                          'Preparation Window',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Use ETA Timer Alert',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.secondaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${journey.prepWindowMinutes} min buffer',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSecondaryContainer,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
+                    ),
+                    subtitle: Text(
+                      journey.useTimerAlert
+                          ? 'Triggers ${journey.prepWindowMinutes} min before estimated arrival OR upon reaching radius'
+                          : 'Disabled: Alarms strictly by location radius (recommended for unpredictable traffic)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Alarm fires when ETA reaches this window or when entering the radius circle.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark
-                          ? const Color(0xFF94A3B8)
-                          : const Color(0xFF64748B),
                     ),
+                    value: journey.useTimerAlert,
+                    onChanged: (val) {
+                      journey.setUseTimerAlert(val);
+                    },
                   ),
-                  const SizedBox(height: 12),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: AppConstants.prepWindowPresets.map((preset) {
-                        final isSelected = journey.prepWindowMinutes == preset;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: ChoiceChip(
-                            label: Text('$preset min'),
-                            selected: isSelected,
-                            onSelected: (_) => journey.setPrepWindow(preset),
+                  if (journey.useTimerAlert) ...[
+                    const SizedBox(height: 12),
+                    Divider(
+                      height: 1,
+                      color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Preparation Buffer',
+                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.secondaryContainer,
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        );
-                      }).toList(),
+                          child: Text(
+                            '${journey.prepWindowMinutes} min before',
+                            style: TextStyle(
+                              color: theme.colorScheme.onSecondaryContainer,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: AppConstants.prepWindowPresets.map((preset) {
+                          final isSelected = journey.prepWindowMinutes == preset;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text('$preset min'),
+                              selected: isSelected,
+                              onSelected: (_) => journey.setPrepWindow(preset),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
                 ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 7. Battery Saver / Low Power Mode Toggle
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                secondary: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.bolt_rounded, color: Color(0xFF10B981), size: 22),
+                ),
+                title: const Text(
+                  'Battery Saver Mode',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                subtitle: const Text(
+                  'Relaxes GPS polling intervals when far away to maximize battery life',
+                  style: TextStyle(fontSize: 12),
+                ),
+                value: journey.batterySaverMode,
+                onChanged: (val) {
+                  journey.setBatterySaverMode(val);
+                },
               ),
             ),
           ),
@@ -492,8 +585,7 @@ class HomeMainView extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline_rounded,
-                      color: Color(0xFFD97706)),
+                  const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706)),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -510,7 +602,7 @@ class HomeMainView extends StatelessWidget {
             ),
           const SizedBox(height: 24),
 
-          // 7. Prominent START JOURNEY Button
+          // 8. START JOURNEY Button
           SizedBox(
             width: double.infinity,
             height: 56,

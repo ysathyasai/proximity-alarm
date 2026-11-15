@@ -93,10 +93,10 @@ class BackgroundMonitoringService {
         playSound: false,
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(5000), // Check every 5 seconds
+        eventAction: ForegroundTaskEventAction.nothing(), // Battery optimized: avoid busy looping
         autoRunOnBoot: false,
         allowWakeLock: true,
-        allowWifiLock: true,
+        allowWifiLock: false,
       ),
     );
 

@@ -14,6 +14,9 @@ class SettingsProvider with ChangeNotifier {
   ThemeMode get themeMode => _settings.themeMode;
   double get defaultRadiusMeters => _settings.defaultRadiusMeters;
   int get defaultPrepWindowMinutes => _settings.defaultPrepWindowMinutes;
+  bool get useTimerAlert => _settings.useTimerAlert;
+  bool get batterySaverMode => _settings.batterySaverMode;
+  bool get preferOfflineGoogleMaps => _settings.preferOfflineGoogleMaps;
   String get alarmSoundId => _settings.alarmSoundId;
   bool get vibrationEnabled => _settings.vibrationEnabled;
   bool get repeatAlarm => _settings.repeatAlarm;
@@ -39,6 +42,24 @@ class SettingsProvider with ChangeNotifier {
 
   Future<void> updateDefaultPrepWindow(int minutes) async {
     _settings = _settings.copyWith(defaultPrepWindowMinutes: minutes);
+    notifyListeners();
+    await _repository.saveSettings(_settings);
+  }
+
+  Future<void> updateUseTimerAlert(bool enabled) async {
+    _settings = _settings.copyWith(useTimerAlert: enabled);
+    notifyListeners();
+    await _repository.saveSettings(_settings);
+  }
+
+  Future<void> updateBatterySaverMode(bool enabled) async {
+    _settings = _settings.copyWith(batterySaverMode: enabled);
+    notifyListeners();
+    await _repository.saveSettings(_settings);
+  }
+
+  Future<void> updatePreferOfflineGoogleMaps(bool enabled) async {
+    _settings = _settings.copyWith(preferOfflineGoogleMaps: enabled);
     notifyListeners();
     await _repository.saveSettings(_settings);
   }

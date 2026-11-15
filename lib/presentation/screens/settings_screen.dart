@@ -130,6 +130,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                     }).toList(),
                   ),
+                  const SizedBox(height: 16),
+                  Divider(
+                    height: 1,
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Use ETA Timer Alert',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Trigger alarm on ETA buffer only when toggled on; otherwise triggers strictly by distance radius',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: settings.useTimerAlert,
+                    onChanged: (val) {
+                      settingsProvider.updateUseTimerAlert(val);
+                    },
+                  ),
+                  Divider(
+                    height: 1,
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Battery Saver Mode',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Relaxes GPS distance polling when far away to minimize CPU and battery usage',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: settings.batterySaverMode,
+                    onChanged: (val) {
+                      settingsProvider.updateBatterySaverMode(val);
+                    },
+                  ),
+                  Divider(
+                    height: 1,
+                    color: isDark
+                        ? const Color(0xFF334155)
+                        : const Color(0xFFE2E8F0),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Prefer Offline Google Maps',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Enables quick one-tap shortcuts to your downloaded Google Maps offline areas',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: settings.preferOfflineGoogleMaps,
+                    onChanged: (val) {
+                      settingsProvider.updatePreferOfflineGoogleMaps(val);
+                    },
+                  ),
                 ],
               ),
             ),

@@ -40,3 +40,4 @@ class Formatters {
     return DateFormat('MMM d, y • h:mm a').format(dateTime);
   }
 }
+

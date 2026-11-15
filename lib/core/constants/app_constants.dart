@@ -60,3 +60,4 @@ class AppConstants {
     soundBell: 'assets/sounds/alarm_bell.wav',
   };
 }
+

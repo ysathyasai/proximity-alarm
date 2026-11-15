@@ -79,3 +79,4 @@ class MetricBadge extends StatelessWidget {
     );
   }
 }
+

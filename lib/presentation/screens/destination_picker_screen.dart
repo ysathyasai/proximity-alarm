@@ -7,6 +7,7 @@ import '../../data/models/destination.dart';
 import '../../providers/journey_provider.dart';
 import '../../providers/saved_destinations_provider.dart';
 import '../../services/geocoding_service.dart';
+import '../../services/map_launcher_service.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/proximity_map.dart';
 import '../widgets/radius_selector.dart';
@@ -251,6 +252,20 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
                     Row(
                       children: [
                         IconButton.filledTonal(
+                          tooltip: 'Open in downloaded Google Maps (Offline)',
+                          onPressed: () {
+                            if (_pickedDestination != null) {
+                              MapLauncherService.openGoogleMaps(
+                                latitude: _pickedDestination!.latitude,
+                                longitude: _pickedDestination!.longitude,
+                                label: _pickedDestination!.name,
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.explore_rounded, color: Color(0xFF10B981)),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filledTonal(
                           tooltip: 'Save destination',
                           onPressed: () {
                             saved.addDestination(_pickedDestination!);
@@ -297,3 +312,4 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
     );
   }
 }
+

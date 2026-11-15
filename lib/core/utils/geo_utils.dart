@@ -108,20 +108,26 @@ class GeoUtils {
   }
 
   /// Determines if alarm should be triggered based on:
-  /// 1. Distance <= radiusMeters
-  /// 2. ETA <= prepWindowMinutes
+  /// 1. Distance <= radiusMeters (Physical geofence - always checked)
+  /// 2. ETA <= prepWindowMinutes (Timer - ONLY evaluated if [useTimerAlert] is toggled on)
   static bool shouldTriggerAlarm({
     required double distanceMeters,
     required double radiusMeters,
     required int etaMinutes,
     required int prepWindowMinutes,
+    bool useTimerAlert = false,
   }) {
+    // Always trigger when entering the physical destination radius
     if (distanceMeters <= radiusMeters) {
       return true;
     }
-    if (etaMinutes > 0 && etaMinutes <= prepWindowMinutes) {
+
+    // Trigger on timer only when explicitly enabled by user
+    if (useTimerAlert && etaMinutes > 0 && etaMinutes <= prepWindowMinutes) {
       return true;
     }
+
     return false;
   }
 }
+
