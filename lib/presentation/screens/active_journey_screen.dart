@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/journey.dart';
 import '../../providers/journey_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../services/map_launcher_service.dart';
 import '../widgets/metric_badge.dart';
 import '../widgets/proximity_map.dart';
@@ -45,6 +46,8 @@ class ActiveJourneyScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final journey = context.read<JourneyProvider>();
+    final settings = context.watch<SettingsProvider>();
+    final unit = settings.distanceUnit;
 
     return Scaffold(
       appBar: AppBar(
@@ -75,7 +78,7 @@ class ActiveJourneyScreen extends StatelessWidget {
                       isApproaching
                           ? 'Approaching Alert Zone'
                           : (jp.batterySaverMode
-                              ? 'Active (Battery Saver Mode)'
+                              ? 'Active (Eco Saver GPS)'
                               : 'Monitoring Active (Background)'),
                       style: TextStyle(
                         fontSize: 11,
@@ -151,6 +154,10 @@ class ActiveJourneyScreen extends StatelessWidget {
                   isInteractive: true,
                   showRecenterButtons: true,
                   showGoogleMapsButton: true,
+                  showRadiusCircle: settings.showRadiusCircle,
+                  showConnectingLine: settings.showConnectingLine,
+                  showRoutePolyline: settings.showRoutePolyline,
+                  distanceUnit: unit,
                 ),
               ),
 
@@ -201,8 +208,8 @@ class ActiveJourneyScreen extends StatelessWidget {
                                   isApproaching
                                       ? 'Within approach zone! Alarm will trigger soon.'
                                       : jp.useTimerAlert
-                                          ? 'Alarms when < ${Formatters.formatDistance(jp.radiusMeters)} OR < ${jp.prepWindowMinutes}m ETA.'
-                                          : 'Alarms strictly when entering the ${Formatters.formatDistance(jp.radiusMeters)} radius.',
+                                          ? 'Alarms when < ${Formatters.formatDistance(jp.radiusMeters, unit)} OR < ${jp.prepWindowMinutes}m ETA.'
+                                          : 'Alarms strictly when entering the ${Formatters.formatDistance(jp.radiusMeters, unit)} radius.',
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
@@ -217,45 +224,49 @@ class ActiveJourneyScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
 
-                        // Metrics 2x2 Grid
+                        // Metrics Grid
                         Row(
                           children: [
                             Expanded(
                               child: MetricBadge(
                                 icon: Icons.straighten_rounded,
                                 label: 'DISTANCE LEFT',
-                                value: Formatters.formatDistance(remainingDist),
+                                value: Formatters.formatDistance(remainingDist, unit),
                                 iconColor: const Color(0xFF2563EB),
                               ),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: MetricBadge(
-                                icon: Icons.access_time_rounded,
-                                label: jp.useTimerAlert ? 'ESTIMATED ARRIVAL' : 'ETA (TIMER OFF)',
-                                value: Formatters.formatDurationMinutes(etaMinutes),
-                                iconColor: const Color(0xFFF59E0B),
+                            if (settings.showEtaMetric) ...[
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: MetricBadge(
+                                  icon: Icons.access_time_rounded,
+                                  label: jp.useTimerAlert ? 'ESTIMATED ARRIVAL' : 'ETA (TIMER OFF)',
+                                  value: Formatters.formatDurationMinutes(etaMinutes),
+                                  iconColor: const Color(0xFFF59E0B),
+                                ),
                               ),
-                            ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            Expanded(
-                              child: MetricBadge(
-                                icon: Icons.speed_rounded,
-                                label: 'TRANSIT SPEED',
-                                value: Formatters.formatSpeed(speed),
-                                iconColor: const Color(0xFF10B981),
+                            if (settings.showSpeedMetric) ...[
+                              Expanded(
+                                child: MetricBadge(
+                                  icon: Icons.speed_rounded,
+                                  label: 'TRANSIT SPEED',
+                                  value: Formatters.formatSpeed(speed, unit),
+                                  iconColor: const Color(0xFF10B981),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
+                              const SizedBox(width: 10),
+                            ],
                             Expanded(
                               child: MetricBadge(
                                 icon: Icons.alarm_rounded,
                                 label: 'ALERT ZONE',
-                                value: '< ${Formatters.formatDistance(jp.radiusMeters)}',
+                                value: '< ${Formatters.formatDistance(jp.radiusMeters, unit)}',
                                 iconColor: const Color(0xFF8B5CF6),
                               ),
                             ),
@@ -285,7 +296,7 @@ class ActiveJourneyScreen extends StatelessWidget {
                                 size: 16,
                                 color: jp.batterySaverMode ? const Color(0xFF10B981) : Colors.grey,
                               ),
-                              label: Text(jp.batterySaverMode ? 'Eco GPS' : 'Full GPS'),
+                              label: Text(jp.batterySaverMode ? 'Eco GPS' : 'Standard GPS'),
                               selected: jp.batterySaverMode,
                               onSelected: (val) => jp.setBatterySaverMode(val),
                             ),

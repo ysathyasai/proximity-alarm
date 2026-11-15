@@ -34,7 +34,7 @@ class JourneyHistoryProvider with ChangeNotifier {
   Future<void> clearHistory() async {
     _history.clear();
     notifyListeners();
-    await _repository.saveJourneyHistory(_history);
+    await _repository.clearJourneyHistory();
   }
 }
 

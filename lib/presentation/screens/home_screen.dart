@@ -204,7 +204,7 @@ class HomeMainView extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'To: ${journey.destination?.name ?? "Selected Destination"} • ${Formatters.formatDistance(journey.remainingDistanceMeters)} left',
+                            'To: ${journey.destination?.name ?? "Selected Destination"} • ${Formatters.formatDistance(journey.remainingDistanceMeters, settings.distanceUnit)} left',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.9),
                               fontSize: 12,
@@ -370,7 +370,7 @@ class HomeMainView extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            Formatters.formatDistance(journey.remainingDistanceMeters),
+                            Formatters.formatDistance(journey.remainingDistanceMeters, settings.distanceUnit),
                             style: TextStyle(
                               color: theme.colorScheme.onPrimaryContainer,
                               fontWeight: FontWeight.w800,
@@ -450,6 +450,7 @@ class HomeMainView extends StatelessWidget {
               padding: const EdgeInsets.all(18),
               child: RadiusSelector(
                 currentRadiusMeters: journey.radiusMeters,
+                distanceUnit: settings.distanceUnit,
                 onRadiusChanged: (val) {
                   journey.setRadius(val);
                 },

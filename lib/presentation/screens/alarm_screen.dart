@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../providers/journey_provider.dart';
+import '../../providers/settings_provider.dart';
 
 class AlarmScreen extends StatefulWidget {
   const AlarmScreen({super.key});
@@ -15,6 +16,8 @@ class _AlarmScreenState extends State<AlarmScreen>
   late final AnimationController _pulseController;
   late final Animation<double> _scaleAnimation;
   late final Animation<double> _glowAnimation;
+  double _slideDragPosition = 0.0;
+  bool _isDismissed = false;
 
   @override
   void initState() {
@@ -39,18 +42,31 @@ class _AlarmScreenState extends State<AlarmScreen>
     super.dispose();
   }
 
+  Future<void> _handleDismiss(JourneyProvider journey) async {
+    if (_isDismissed) return;
+    _isDismissed = true;
+    await journey.dismissAlarm();
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final journey = context.watch<JourneyProvider>();
+    final settings = context.watch<SettingsProvider>();
     final dest = journey.destination;
     final remainingDist = journey.remainingDistanceMeters;
     final etaMinutes = journey.estimatedArrivalMinutes;
+    final distanceUnit = settings.distanceUnit;
+    final requireSlide = settings.requireSlideToDismiss;
+    final snoozeMinutes = settings.snoozeDurationMinutes;
 
     return PopScope(
       canPop: false, // Force explicit dismissal of alarm
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          // Do nothing or remind user to dismiss
+          // Explicit action required
         }
       },
       child: Scaffold(
@@ -69,8 +85,8 @@ class _AlarmScreenState extends State<AlarmScreen>
                     return Transform.scale(
                       scale: _scaleAnimation.value,
                       child: Container(
-                        width: 140,
-                        height: 140,
+                        width: 136,
+                        height: 136,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: const Color(0xFFEF4444),
@@ -86,13 +102,13 @@ class _AlarmScreenState extends State<AlarmScreen>
                         child: const Icon(
                           Icons.alarm_on_rounded,
                           color: Colors.white,
-                          size: 76,
+                          size: 74,
                         ),
                       ),
                     );
                   },
                 ),
-                const SizedBox(height: 36),
+                const SizedBox(height: 32),
 
                 // Urgent Typography
                 const Text(
@@ -104,17 +120,17 @@ class _AlarmScreenState extends State<AlarmScreen>
                     letterSpacing: 2.0,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 const Text(
                   'APPROACHING YOUR STOP',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 22),
 
                 // Destination Card
                 Container(
@@ -152,7 +168,7 @@ class _AlarmScreenState extends State<AlarmScreen>
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
@@ -168,7 +184,7 @@ class _AlarmScreenState extends State<AlarmScreen>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                Formatters.formatDistance(remainingDist),
+                                Formatters.formatDistance(remainingDist, distanceUnit),
                                 style: const TextStyle(
                                   color: Color(0xFFF59E0B),
                                   fontSize: 20,
@@ -194,9 +210,7 @@ class _AlarmScreenState extends State<AlarmScreen>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                etaMinutes <= 1
-                                    ? 'Immediate'
-                                    : '~$etaMinutes min',
+                                etaMinutes <= 1 ? 'Immediate' : '~$etaMinutes min',
                                 style: const TextStyle(
                                   color: Color(0xFF10B981),
                                   fontSize: 20,
@@ -213,60 +227,147 @@ class _AlarmScreenState extends State<AlarmScreen>
 
                 const Spacer(flex: 2),
 
-                // Large Unmissable DISMISS Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 64,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEF4444),
-                      foregroundColor: Colors.white,
-                      elevation: 8,
-                      shadowColor: const Color(0xFFEF4444).withValues(alpha: 0.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    onPressed: () async {
-                      await journey.dismissAlarm();
-                      if (context.mounted) {
-                        Navigator.of(context).pop();
-                      }
+                // DISMISS Action: Slide-to-Dismiss OR Large Button
+                if (requireSlide) ...[
+                  // Slide to Dismiss Track
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final double maxSlide = constraints.maxWidth - 64;
+                      return Container(
+                        height: 64,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(32),
+                          border: Border.all(
+                            color: const Color(0xFFEF4444).withValues(alpha: 0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Stack(
+                          alignment: Alignment.centerLeft,
+                          children: [
+                            const Center(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'SLIDE TO DISMISS',
+                                    style: TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    color: Color(0xFFEF4444),
+                                    size: 14,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Positioned(
+                              left: _slideDragPosition,
+                              child: GestureDetector(
+                                onHorizontalDragUpdate: (details) {
+                                  setState(() {
+                                    _slideDragPosition = (_slideDragPosition + details.delta.dx)
+                                        .clamp(0.0, maxSlide);
+                                  });
+                                },
+                                onHorizontalDragEnd: (details) {
+                                  if (_slideDragPosition >= maxSlide * 0.8) {
+                                    _handleDismiss(journey);
+                                  } else {
+                                    setState(() {
+                                      _slideDragPosition = 0.0;
+                                    });
+                                  }
+                                },
+                                child: Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFEF4444),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black45,
+                                        blurRadius: 8,
+                                        offset: Offset(2, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.check_rounded,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
                     },
-                    child: const Text(
-                      'DISMISS ALARM',
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.0,
+                  ),
+                ] else ...[
+                  // Large Unmissable DISMISS Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 64,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEF4444),
+                        foregroundColor: Colors.white,
+                        elevation: 8,
+                        shadowColor:
+                            const Color(0xFFEF4444).withValues(alpha: 0.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      onPressed: () => _handleDismiss(journey),
+                      child: const Text(
+                        'DISMISS ALARM',
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
+
                 const SizedBox(height: 14),
 
-                // Snooze 2 Min Button
+                // Snooze Button
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFF59E0B),
-                      side: const BorderSide(color: Color(0xFFF59E0B), width: 1.5),
+                      side:
+                          const BorderSide(color: Color(0xFFF59E0B), width: 1.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     onPressed: () async {
-                      await journey.snoozeAlarm(2);
+                      await journey.snoozeAlarm(snoozeMinutes);
                       if (context.mounted) {
                         Navigator.of(context).pop();
                       }
                     },
                     icon: const Icon(Icons.snooze_rounded, size: 20),
-                    label: const Text(
-                      'SNOOZE FOR 2 MINUTES',
-                      style: TextStyle(
+                    label: Text(
+                      'SNOOZE FOR $snoozeMinutes MINUTES',
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
@@ -282,4 +383,3 @@ class _AlarmScreenState extends State<AlarmScreen>
     );
   }
 }
-

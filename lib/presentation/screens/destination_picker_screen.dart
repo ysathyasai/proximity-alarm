@@ -6,6 +6,7 @@ import '../../core/utils/geo_utils.dart';
 import '../../data/models/destination.dart';
 import '../../providers/journey_provider.dart';
 import '../../providers/saved_destinations_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../services/geocoding_service.dart';
 import '../../services/map_launcher_service.dart';
 import '../widgets/destination_search_bar.dart';
@@ -68,6 +69,7 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final journey = context.watch<JourneyProvider>();
     final saved = context.read<SavedDestinationsProvider>();
+    final settings = context.watch<SettingsProvider>();
 
     final userPos = journey.currentPosition;
     final double? distanceMeters =
@@ -95,6 +97,10 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
               onTap: _onMapTapped,
               isInteractive: true,
               showRecenterButtons: true,
+              showRadiusCircle: settings.showRadiusCircle,
+              showConnectingLine: settings.showConnectingLine,
+              showRoutePolyline: settings.showRoutePolyline,
+              distanceUnit: settings.distanceUnit,
             ),
           ),
 
@@ -223,7 +229,7 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              Formatters.formatDistance(distanceMeters),
+                              Formatters.formatDistance(distanceMeters, settings.distanceUnit),
                               style: TextStyle(
                                 color: theme.colorScheme.onPrimaryContainer,
                                 fontWeight: FontWeight.w800,
@@ -238,6 +244,7 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
                     // Radius Selector
                     RadiusSelector(
                       currentRadiusMeters: _radiusMeters,
+                      distanceUnit: settings.distanceUnit,
                       onRadiusChanged: (val) {
                         setState(() {
                           _radiusMeters = val;

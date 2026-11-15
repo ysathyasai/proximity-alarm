@@ -52,5 +52,11 @@ class SavedDestinationsProvider with ChangeNotifier {
     notifyListeners();
     await _repository.saveSavedDestinations(_destinations);
   }
+
+  Future<void> clearAllDestinations() async {
+    _destinations.clear();
+    notifyListeners();
+    await _repository.clearSavedDestinations();
+  }
 }
 

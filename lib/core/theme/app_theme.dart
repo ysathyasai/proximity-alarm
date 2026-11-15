@@ -2,18 +2,22 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   // Brand Colors
-  static const Color primarySeed = Color(0xFF2563EB); // Vibrant Royal Blue
+  static const Color defaultPrimarySeed = Color(0xFF2563EB); // Vibrant Royal Blue
   static const Color alertAmber = Color(0xFFF59E0B);
   static const Color alertRed = Color(0xFFEF4444);
   static const Color successGreen = Color(0xFF10B981);
   static const Color cardDark = Color(0xFF1E293B);
 
-  // Light Theme
-  static ThemeData get lightTheme {
+  // Backward compatible defaults
+  static ThemeData get lightTheme => getLightTheme(defaultPrimarySeed);
+  static ThemeData get darkTheme => getDarkTheme(defaultPrimarySeed);
+
+  // Dynamic Light Theme
+  static ThemeData getLightTheme(Color primaryColor) {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: primarySeed,
+      seedColor: primaryColor,
       brightness: Brightness.light,
-      primary: const Color(0xFF2563EB),
+      primary: primaryColor,
       secondary: const Color(0xFF0D9488),
       tertiary: alertAmber,
       error: alertRed,
@@ -86,19 +90,19 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+          borderSide: BorderSide(color: primaryColor, width: 2),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
         elevation: 0,
         backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFFDBEAFE),
+        indicatorColor: primaryColor.withValues(alpha: 0.15),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const TextStyle(
+            return TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF1E40AF),
+              color: primaryColor,
             );
           }
           return const TextStyle(
@@ -107,26 +111,45 @@ class AppTheme {
             color: Color(0xFF64748B),
           );
         }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return IconThemeData(color: primaryColor);
+          }
+          return const IconThemeData(color: Color(0xFF64748B));
+        }),
+      ),
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
       ),
     );
   }
 
-  // Dark Theme
-  static ThemeData get darkTheme {
+  // Dynamic Dark Theme
+  static ThemeData getDarkTheme(Color primaryColor) {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: primarySeed,
+      seedColor: primaryColor,
       brightness: Brightness.dark,
-      primary: const Color(0xFF3B82F6),
-      secondary: const Color(0xFF14B8A6),
+      primary: primaryColor,
+      secondary: const Color(0xFF2DD4BF),
       tertiary: alertAmber,
       error: alertRed,
-      surface: const Color(0xFF0F172A),
+      surface: const Color(0xFF1E293B),
     );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: const Color(0xFF090D16),
+      scaffoldBackgroundColor: const Color(0xFF0F172A), // Deep Slate
       appBarTheme: const AppBarTheme(
         centerTitle: false,
         elevation: 0,
@@ -185,23 +208,23 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF334155)),
+          borderSide: const BorderSide(color: Color(0xFF475569)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF60A5FA), width: 2),
+          borderSide: BorderSide(color: primaryColor, width: 2),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
         elevation: 0,
-        backgroundColor: const Color(0xFF0F172A),
-        indicatorColor: const Color(0xFF1E3A8A),
+        backgroundColor: const Color(0xFF1E293B),
+        indicatorColor: primaryColor.withValues(alpha: 0.25),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const TextStyle(
+            return TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF93C5FD),
+              color: primaryColor,
             );
           }
           return const TextStyle(
@@ -210,8 +233,26 @@ class AppTheme {
             color: Color(0xFF94A3B8),
           );
         }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return IconThemeData(color: primaryColor);
+          }
+          return const IconThemeData(color: Color(0xFF94A3B8));
+        }),
+      ),
+      chipTheme: ChipThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
       ),
     );
   }
 }
-

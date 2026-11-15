@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/formatters.dart';
 import '../../services/map_launcher_service.dart';
 
 class ProximityMap extends StatefulWidget {
@@ -15,6 +16,10 @@ class ProximityMap extends StatefulWidget {
   final MapController? mapController;
   final bool showRecenterButtons;
   final bool showGoogleMapsButton;
+  final bool showRadiusCircle;
+  final bool showConnectingLine;
+  final bool showRoutePolyline;
+  final DistanceUnit distanceUnit;
 
   const ProximityMap({
     super.key,
@@ -28,6 +33,10 @@ class ProximityMap extends StatefulWidget {
     this.mapController,
     this.showRecenterButtons = true,
     this.showGoogleMapsButton = true,
+    this.showRadiusCircle = true,
+    this.showConnectingLine = true,
+    this.showRoutePolyline = true,
+    this.distanceUnit = DistanceUnit.metric,
   });
 
   @override
@@ -117,7 +126,7 @@ class _ProximityMapState extends State<ProximityMap> {
                 ),
 
                 // 2. Alert Radius Circle
-                if (widget.destinationPosition != null)
+                if (widget.showRadiusCircle && widget.destinationPosition != null)
                   CircleLayer(
                     circles: [
                       CircleMarker(
@@ -131,8 +140,22 @@ class _ProximityMapState extends State<ProximityMap> {
                     ],
                   ),
 
-                // 3. Route Polyline
-                if (widget.routePoints.isNotEmpty)
+                // 3. Straight-line connecting indicator (when enabled)
+                if (widget.showConnectingLine &&
+                    widget.userPosition != null &&
+                    widget.destinationPosition != null)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: [widget.userPosition!, widget.destinationPosition!],
+                        strokeWidth: 2.0,
+                        color: const Color(0xFF64748B).withValues(alpha: 0.6),
+                      ),
+                    ],
+                  ),
+
+                // 4. Road Route Polyline
+                if (widget.showRoutePolyline && widget.routePoints.isNotEmpty)
                   PolylineLayer(
                     polylines: [
                       Polyline(
@@ -143,7 +166,7 @@ class _ProximityMapState extends State<ProximityMap> {
                     ],
                   ),
 
-                // 4. Markers
+                // 5. Markers
                 MarkerLayer(
                   markers: [
                     if (widget.userPosition != null)
@@ -218,116 +241,130 @@ class _ProximityMapState extends State<ProximityMap> {
                     ),
                     const SizedBox(height: 14),
                     const Text(
-                      'Radar Mode (Zero Lag & Low Battery)',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      'Radar Mode Active',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Map tiles paused to conserve GPU and battery',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
+                      'Monitoring destination without downloading map tiles.\n'
+                      'Radius: ${Formatters.formatDistance(widget.radiusMeters, widget.distanceUnit)}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
                 ),
               ),
             ),
 
-          // Controls overlay
-          if (widget.isInteractive)
-            Positioned(
-              right: 16,
-              bottom: 16,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Toggle Radar / Battery Saver Mode
-                  FloatingActionButton.small(
-                    heroTag: 'btn_toggle_radar',
-                    backgroundColor: _useRadarMode
-                        ? const Color(0xFF2563EB)
-                        : (isDark ? const Color(0xFF1E293B) : Colors.white),
-                    foregroundColor: _useRadarMode
-                        ? Colors.white
-                        : const Color(0xFF2563EB),
-                    tooltip: _useRadarMode ? 'Switch to Map Tiles' : 'Switch to Radar Mode (Battery Saver)',
-                    onPressed: () {
-                      setState(() {
-                        _useRadarMode = !_useRadarMode;
-                      });
-                    },
-                    child: Icon(_useRadarMode ? Icons.map_rounded : Icons.eco_rounded),
+          // Top Controls: Radar Mode & Google Maps Action
+          Positioned(
+            top: 12,
+            right: 12,
+            child: Column(
+              children: [
+                // Radar Toggle
+                FloatingActionButton.small(
+                  heroTag: 'map_radar_toggle',
+                  backgroundColor: _useRadarMode
+                      ? const Color(0xFF10B981)
+                      : (isDark ? const Color(0xFF1E293B) : Colors.white),
+                  foregroundColor: _useRadarMode
+                      ? Colors.white
+                      : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                  tooltip: _useRadarMode ? 'Switch to Map Tiles' : 'Switch to Radar Mode',
+                  onPressed: () {
+                    setState(() {
+                      _useRadarMode = !_useRadarMode;
+                    });
+                  },
+                  child: Icon(
+                    _useRadarMode ? Icons.map_rounded : Icons.radar_rounded,
+                    size: 20,
                   ),
+                ),
+                if (widget.showGoogleMapsButton) ...[
                   const SizedBox(height: 8),
-
-                  // Open Google Maps (Downloaded Offline Areas)
-                  if (widget.showGoogleMapsButton) ...[
-                    FloatingActionButton.small(
-                      heroTag: 'btn_open_gmaps',
-                      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                      foregroundColor: const Color(0xFF10B981),
-                      tooltip: 'Use downloaded Google Maps offline',
-                      onPressed: _openGoogleMapsOffline,
-                      child: const Icon(Icons.explore_rounded),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-
-                  if (widget.showRecenterButtons && !_useRadarMode) ...[
-                    if (widget.userPosition != null && widget.destinationPosition != null)
-                      FloatingActionButton.small(
-                        heroTag: 'btn_fit',
-                        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        foregroundColor: const Color(0xFF2563EB),
-                        tooltip: 'Fit route',
-                        onPressed: _fitBounds,
-                        child: const Icon(Icons.zoom_out_map),
-                      ),
-                    const SizedBox(height: 8),
-                    if (widget.destinationPosition != null)
-                      FloatingActionButton.small(
-                        heroTag: 'btn_dest',
-                        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        foregroundColor: const Color(0xFFDC2626),
-                        tooltip: 'Go to destination',
-                        onPressed: () => _recenter(widget.destinationPosition!, 14.5),
-                        child: const Icon(Icons.flag_rounded),
-                      ),
-                    const SizedBox(height: 8),
-                    if (widget.userPosition != null)
-                      FloatingActionButton.small(
-                        heroTag: 'btn_user',
-                        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-                        foregroundColor: const Color(0xFF2563EB),
-                        tooltip: 'My location',
-                        onPressed: () => _recenter(widget.userPosition!, 15.5),
-                        child: const Icon(Icons.my_location),
-                      ),
-                  ],
+                  FloatingActionButton.small(
+                    heroTag: 'map_google_maps_offline',
+                    backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    foregroundColor: const Color(0xFF10B981),
+                    tooltip: 'Open in downloaded Google Maps',
+                    onPressed: _openGoogleMapsOffline,
+                    child: const Icon(Icons.explore_rounded, size: 20),
+                  ),
                 ],
-              ),
+              ],
             ),
+          ),
 
-          // OpenStreetMap Attribution Badge
+          // Bottom Left: Attribution
           if (!_useRadarMode)
             Positioned(
+              bottom: 4,
               left: 8,
-              bottom: 8,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.55),
+                  color: Colors.white.withValues(alpha: 0.8),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Text(
                   AppConstants.osmAttribution,
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w400,
+                    fontSize: 9,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
+              ),
+            ),
+
+          // Bottom Right: Recenter Buttons
+          if (widget.showRecenterButtons && !_useRadarMode)
+            Positioned(
+              bottom: 12,
+              right: 12,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.userPosition != null &&
+                      widget.destinationPosition != null)
+                    FloatingActionButton.small(
+                      heroTag: 'map_fit_bounds',
+                      backgroundColor:
+                          isDark ? const Color(0xFF1E293B) : Colors.white,
+                      foregroundColor:
+                          isDark ? Colors.white : const Color(0xFF0F172A),
+                      tooltip: 'Show both points',
+                      onPressed: _fitBounds,
+                      child: const Icon(Icons.zoom_out_map_rounded, size: 20),
+                    ),
+                  if (widget.destinationPosition != null) ...[
+                    const SizedBox(height: 8),
+                    FloatingActionButton.small(
+                      heroTag: 'map_center_destination',
+                      backgroundColor:
+                          isDark ? const Color(0xFF1E293B) : Colors.white,
+                      foregroundColor: const Color(0xFFDC2626),
+                      tooltip: 'Center on Destination',
+                      onPressed: () =>
+                          _recenter(widget.destinationPosition!, 15.0),
+                      child: const Icon(Icons.flag_rounded, size: 20),
+                    ),
+                  ],
+                  if (widget.userPosition != null) ...[
+                    const SizedBox(height: 8),
+                    FloatingActionButton.small(
+                      heroTag: 'map_center_user',
+                      backgroundColor:
+                          isDark ? const Color(0xFF1E293B) : Colors.white,
+                      foregroundColor: const Color(0xFF2563EB),
+                      tooltip: 'Center on My Location',
+                      onPressed: () => _recenter(widget.userPosition!, 16.0),
+                      child: const Icon(Icons.my_location_rounded, size: 20),
+                    ),
+                  ],
+                ],
               ),
             ),
         ],

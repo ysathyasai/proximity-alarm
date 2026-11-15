@@ -107,27 +107,53 @@ class GeoUtils {
     return distance <= radiusMeters;
   }
 
-  /// Determines if alarm should be triggered based on:
-  /// 1. Distance <= radiusMeters (Physical geofence - always checked)
-  /// 2. ETA <= prepWindowMinutes (Timer - ONLY evaluated if [useTimerAlert] is toggled on)
+  /// Determines if alarm should be triggered based on AlertMode:
+  /// - AlertMode.fixedRadius: triggers strictly when distance <= radiusMeters
+  /// - AlertMode.adaptiveEta: triggers when eta <= prepWindowMinutes (with safety radius fallback)
+  /// - AlertMode.combined: triggers on distance radius OR (if useTimerAlert is enabled) on ETA
   static bool shouldTriggerAlarm({
     required double distanceMeters,
     required double radiusMeters,
     required int etaMinutes,
     required int prepWindowMinutes,
+    AlertMode alertMode = AlertMode.combined,
     bool useTimerAlert = false,
   }) {
-    // Always trigger when entering the physical destination radius
-    if (distanceMeters <= radiusMeters) {
-      return true;
-    }
+    switch (alertMode) {
+      case AlertMode.fixedRadius:
+        return distanceMeters <= radiusMeters;
 
-    // Trigger on timer only when explicitly enabled by user
-    if (useTimerAlert && etaMinutes > 0 && etaMinutes <= prepWindowMinutes) {
-      return true;
-    }
+      case AlertMode.adaptiveEta:
+        if (etaMinutes > 0 && etaMinutes <= prepWindowMinutes) {
+          return true;
+        }
+        // Safety fallback: if user gets very close (e.g. within 500m or radius), trigger anyway
+        final double fallbackRadius = min(radiusMeters, 500.0);
+        return distanceMeters <= fallbackRadius;
 
+      case AlertMode.combined:
+        // Always trigger when entering the physical destination radius
+        if (distanceMeters <= radiusMeters) {
+          return true;
+        }
+        // Trigger on timer only when explicitly enabled by user
+        if (useTimerAlert && etaMinutes > 0 && etaMinutes <= prepWindowMinutes) {
+          return true;
+        }
+        return false;
+    }
+  }
+
+  /// Evaluates whether user is in the early proximity warning zone (e.g. 2x radius away).
+  static bool shouldTriggerEarlyWarning({
+    required double distanceMeters,
+    required double radiusMeters,
+    required int etaMinutes,
+    required int prepWindowMinutes,
+  }) {
+    if (distanceMeters <= radiusMeters) return false; // Already in full alert zone
+    if (distanceMeters <= radiusMeters * 2.0) return true;
+    if (etaMinutes > 0 && etaMinutes <= prepWindowMinutes * 2) return true;
     return false;
   }
 }
-

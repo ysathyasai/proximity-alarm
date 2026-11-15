@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:proximity_alarm/core/constants/app_constants.dart';
 import 'package:proximity_alarm/data/models/app_settings.dart';
 import 'package:proximity_alarm/data/models/destination.dart';
 import 'package:proximity_alarm/data/models/journey.dart';
+import 'package:proximity_alarm/data/repositories/local_storage_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('Models Serialization Tests', () {
@@ -67,24 +70,75 @@ void main() {
       expect(fromJson.durationMinutes, equals(75));
     });
 
-    test('AppSettings JSON serialization & copyWith', () {
+    test('AppSettings V3 JSON serialization & copyWith', () {
       final defaultSettings = AppSettings();
       expect(defaultSettings.themeMode, equals(ThemeMode.system));
-      expect(defaultSettings.defaultRadiusMeters, equals(2000.0));
+      expect(defaultSettings.accentColorKey, equals(AppConstants.colorBlue));
+      expect(defaultSettings.alertMode, equals(AlertMode.combined));
+      expect(defaultSettings.distanceUnit, equals(DistanceUnit.metric));
+      expect(defaultSettings.monitoringProfile, equals(MonitoringProfile.balanced));
+      expect(defaultSettings.snoozeDurationMinutes, equals(3));
+      expect(defaultSettings.volumeEscalation, isTrue);
+      expect(defaultSettings.requireSlideToDismiss, isFalse);
 
       final updated = defaultSettings.copyWith(
         themeMode: ThemeMode.dark,
-        defaultRadiusMeters: 3000.0,
-        vibrationEnabled: false,
+        accentColorKey: AppConstants.colorGreen,
+        alertMode: AlertMode.fixedRadius,
+        distanceUnit: DistanceUnit.imperial,
+        monitoringProfile: MonitoringProfile.responsive,
+        snoozeDurationMinutes: 5,
+        volumeEscalation: false,
+        requireSlideToDismiss: true,
+        vibrationPattern: VibrationPatternType.pulse,
       );
 
       final json = updated.toJson();
       final fromJson = AppSettings.fromJson(json);
 
       expect(fromJson.themeMode, equals(ThemeMode.dark));
-      expect(fromJson.defaultRadiusMeters, equals(3000.0));
-      expect(fromJson.vibrationEnabled, isFalse);
+      expect(fromJson.accentColorKey, equals(AppConstants.colorGreen));
+      expect(fromJson.alertMode, equals(AlertMode.fixedRadius));
+      expect(fromJson.distanceUnit, equals(DistanceUnit.imperial));
+      expect(fromJson.monitoringProfile, equals(MonitoringProfile.responsive));
+      expect(fromJson.snoozeDurationMinutes, equals(5));
+      expect(fromJson.volumeEscalation, isFalse);
+      expect(fromJson.requireSlideToDismiss, isTrue);
+      expect(fromJson.vibrationPattern, equals(VibrationPatternType.pulse));
+    });
+  });
+
+  group('LocalStorageRepository Tests', () {
+    test('resetSettingsToDefault restores settings without deleting history or destinations', () async {
+      SharedPreferences.setMockInitialValues({
+        'proximity_alarm_settings': '{"themeMode":"dark","defaultRadiusMeters":5000.0}',
+        'proximity_alarm_saved_destinations': '[{"id":"d1","name":"Test Dest","address":"123 St","latitude":10.0,"longitude":20.0,"radiusMeters":2000.0,"category":"home","createdAt":"2026-11-01T00:00:00.000"}]',
+        'proximity_alarm_journey_history': '[{"id":"j1","destination":{"id":"d1","name":"Test Dest","address":"123 St","latitude":10.0,"longitude":20.0,"radiusMeters":2000.0,"category":"home","createdAt":"2026-11-01T00:00:00.000"},"startTime":"2026-11-01T08:00:00.000","startLatitude":10.0,"startLongitude":20.0,"initialDistanceMeters":5000.0,"finalDistanceMeters":100.0,"alertRadiusMeters":2000.0,"prepWindowMinutes":5,"outcome":"completedNormally","alarmTriggered":false}]',
+      });
+
+      final repo = await LocalStorageRepository.getInstance();
+
+      // Verify custom settings loaded
+      final loadedSettings = await repo.loadSettings();
+      expect(loadedSettings.themeMode, equals(ThemeMode.dark));
+      expect(loadedSettings.defaultRadiusMeters, equals(5000.0));
+
+      // Reset settings to default
+      await repo.resetSettingsToDefault();
+
+      // Settings should now be default
+      final resetSettings = await repo.loadSettings();
+      expect(resetSettings.themeMode, equals(ThemeMode.system));
+      expect(resetSettings.defaultRadiusMeters, equals(AppConstants.defaultRadiusMeters));
+
+      // CRITICAL: Destinations and history must remain intact!
+      final destinations = await repo.loadSavedDestinations();
+      expect(destinations.length, equals(1));
+      expect(destinations.first.name, equals('Test Dest'));
+
+      final history = await repo.loadJourneyHistory();
+      expect(history.length, equals(1));
+      expect(history.first.destination.name, equals('Test Dest'));
     });
   });
 }
-

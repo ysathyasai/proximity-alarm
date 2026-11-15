@@ -38,8 +38,12 @@ class JourneyProvider with ChangeNotifier {
   Destination? _selectedDestination;
   double _radiusMeters = AppConstants.defaultRadiusMeters;
   int _prepWindowMinutes = AppConstants.defaultPrepWindowMinutes;
-  bool _useTimerAlert = false;
-  bool _batterySaverMode = false;
+  AlertMode _alertMode = AlertMode.combined;
+  bool _useTimerAlert = true;
+  bool _earlyWarningEnabled = true;
+  MonitoringProfile _monitoringProfile = MonitoringProfile.balanced;
+  DistanceUnit _distanceUnit = DistanceUnit.metric;
+  int _snoozeDurationMinutes = 3;
 
   LatLng? _currentPosition;
   double _currentAccuracy = 0.0;
@@ -51,6 +55,7 @@ class JourneyProvider with ChangeNotifier {
   bool _isRoadRoute = false;
 
   bool _hasTriggeredAlarmThisJourney = false;
+  bool _hasTriggeredEarlyWarning = false;
   DateTime? _journeyStartTime;
   double _initialDistanceMeters = 0.0;
   String? _warningMessage;
@@ -86,8 +91,13 @@ class JourneyProvider with ChangeNotifier {
   Destination? get destination => _selectedDestination;
   double get radiusMeters => _radiusMeters;
   int get prepWindowMinutes => _prepWindowMinutes;
+  AlertMode get alertMode => _alertMode;
   bool get useTimerAlert => _useTimerAlert;
-  bool get batterySaverMode => _batterySaverMode;
+  bool get earlyWarningEnabled => _earlyWarningEnabled;
+  MonitoringProfile get monitoringProfile => _monitoringProfile;
+  bool get batterySaverMode => _monitoringProfile == MonitoringProfile.batterySaver;
+  DistanceUnit get distanceUnit => _distanceUnit;
+  int get snoozeDurationMinutes => _snoozeDurationMinutes;
   LatLng? get currentPosition => _currentPosition;
   double get currentAccuracy => _currentAccuracy;
   double get currentSpeedMps => _currentSpeedMps;
@@ -152,16 +162,33 @@ class JourneyProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void setAlertMode(AlertMode mode) {
+    _alertMode = mode;
+    _useTimerAlert = mode != AlertMode.fixedRadius;
+    notifyListeners();
+  }
+
   void setUseTimerAlert(bool enabled) {
     _useTimerAlert = enabled;
+    _alertMode = enabled ? AlertMode.combined : AlertMode.fixedRadius;
+    notifyListeners();
+  }
+
+  void setMonitoringProfile(MonitoringProfile profile) {
+    _monitoringProfile = profile;
+    if (_remainingDistanceMeters > 0) {
+      _locationService.updateDistanceFilter(_getAdaptiveDistanceFilter(_remainingDistanceMeters));
+    }
     notifyListeners();
   }
 
   void setBatterySaverMode(bool enabled) {
-    _batterySaverMode = enabled;
-    if (_remainingDistanceMeters > 0) {
-      _locationService.updateDistanceFilter(_getAdaptiveDistanceFilter(_remainingDistanceMeters));
-    }
+    setMonitoringProfile(
+        enabled ? MonitoringProfile.batterySaver : MonitoringProfile.balanced);
+  }
+
+  void setDistanceUnit(DistanceUnit unit) {
+    _distanceUnit = unit;
     notifyListeners();
   }
 
@@ -198,21 +225,26 @@ class JourneyProvider with ChangeNotifier {
 
     _status = JourneyStatus.active;
     _hasTriggeredAlarmThisJourney = false;
+    _hasTriggeredEarlyWarning = false;
     _journeyStartTime = DateTime.now();
     _warningMessage = null;
 
     if (settings != null) {
+      _alertMode = settings.alertMode;
       _useTimerAlert = settings.useTimerAlert;
-      _batterySaverMode = settings.batterySaverMode;
+      _monitoringProfile = settings.monitoringProfile;
+      _distanceUnit = settings.distanceUnit;
+      _earlyWarningEnabled = settings.earlyWarningEnabled;
+      _snoozeDurationMinutes = settings.snoozeDurationMinutes;
     }
 
-    // Check if starting inside or dangerously close to alert radius
+    // Check if starting inside alert radius
     if (_currentPosition != null) {
       final double dist = GeoUtils.calculateDistanceMeters(
           _currentPosition!, _selectedDestination!.latLng);
       if (dist <= _radiusMeters) {
         _warningMessage =
-            'Notice: You are currently already within the ${_radiusMeters.round()}m alert radius!';
+            'Notice: You are currently already within the ${Formatters.formatDistance(_radiusMeters, _distanceUnit)} alert radius!';
       }
     }
 
@@ -224,7 +256,7 @@ class JourneyProvider with ChangeNotifier {
       radiusMeters: _radiusMeters,
       prepWindowMinutes: _prepWindowMinutes,
       initialStatusText:
-          'Tracking to ${_selectedDestination!.name} (${Formatters.formatDistance(_remainingDistanceMeters)})',
+          'Tracking to ${_selectedDestination!.name} (${Formatters.formatDistance(_remainingDistanceMeters, _distanceUnit)})',
     );
 
     // 3. Start Location Service Stream
@@ -236,7 +268,7 @@ class JourneyProvider with ChangeNotifier {
     _locationSubscription =
         _locationService.locationStream.listen(_onLocationUpdate);
 
-    // 4. Start periodic background notification updater (every ~45s)
+    // 4. Start periodic background notification updater
     _notificationUpdateTimer?.cancel();
     _notificationUpdateTimer =
         Timer.periodic(const Duration(seconds: 45), (_) => _refreshNotification());
@@ -266,13 +298,24 @@ class JourneyProvider with ChangeNotifier {
       currentSpeedMetersPerSec: _currentSpeedMps,
     );
 
-    // Adaptive polling: adjust GPS distance filter based on proximity
+    // Adaptive polling: adjust GPS distance filter based on proximity and profile
     final newFilter = _getAdaptiveDistanceFilter(dist);
     _locationService.updateDistanceFilter(newFilter);
 
-    // Check approaching state
-    if (dist <= _radiusMeters * 1.5 && _status == JourneyStatus.active) {
-      _status = JourneyStatus.approaching;
+    // Check early warning
+    if (_earlyWarningEnabled &&
+        !_hasTriggeredEarlyWarning &&
+        _status == JourneyStatus.active) {
+      final isEarly = GeoUtils.shouldTriggerEarlyWarning(
+        distanceMeters: dist,
+        radiusMeters: _radiusMeters,
+        etaMinutes: _estimatedArrivalMinutes,
+        prepWindowMinutes: _prepWindowMinutes,
+      );
+      if (isEarly) {
+        _hasTriggeredEarlyWarning = true;
+        _status = JourneyStatus.approaching;
+      }
     }
 
     // Check Trigger Condition
@@ -282,6 +325,7 @@ class JourneyProvider with ChangeNotifier {
         radiusMeters: _radiusMeters,
         etaMinutes: _estimatedArrivalMinutes,
         prepWindowMinutes: _prepWindowMinutes,
+        alertMode: _alertMode,
         useTimerAlert: _useTimerAlert,
       );
 
@@ -294,33 +338,46 @@ class JourneyProvider with ChangeNotifier {
   }
 
   int _getAdaptiveDistanceFilter(double distanceMeters) {
-    if (_batterySaverMode) {
-      if (distanceMeters > AppConstants.farDistanceThresholdMeters) {
-        return 250; // Relaxed 250m polling when far
-      } else if (distanceMeters > AppConstants.mediumDistanceThresholdMeters) {
-        return 100; // 100m polling
-      } else if (distanceMeters > AppConstants.closeDistanceThresholdMeters) {
-        return 35; // 35m polling
-      } else {
-        return 10; // 10m polling in alert zone
-      }
-    } else {
-      if (distanceMeters > AppConstants.farDistanceThresholdMeters) {
-        return 100; // Far: 100m filter
-      } else if (distanceMeters > AppConstants.mediumDistanceThresholdMeters) {
-        return 50; // Medium: 50m filter
-      } else if (distanceMeters > AppConstants.closeDistanceThresholdMeters) {
-        return 15; // Close: 15m filter
-      } else {
-        return 5; // Very close: 5m filter for maximum precision
-      }
+    switch (_monitoringProfile) {
+      case MonitoringProfile.responsive:
+        if (distanceMeters > AppConstants.farDistanceThresholdMeters) {
+          return 50; // 50m filter when far
+        } else if (distanceMeters > AppConstants.mediumDistanceThresholdMeters) {
+          return 25; // 25m filter
+        } else if (distanceMeters > AppConstants.closeDistanceThresholdMeters) {
+          return 10; // 10m filter
+        } else {
+          return 3; // 3m precision near stop
+        }
+
+      case MonitoringProfile.batterySaver:
+        if (distanceMeters > AppConstants.farDistanceThresholdMeters) {
+          return 250; // Relaxed 250m polling when far
+        } else if (distanceMeters > AppConstants.mediumDistanceThresholdMeters) {
+          return 100; // 100m polling
+        } else if (distanceMeters > AppConstants.closeDistanceThresholdMeters) {
+          return 35; // 35m polling
+        } else {
+          return 10; // 10m polling in alert zone
+        }
+
+      case MonitoringProfile.balanced:
+        if (distanceMeters > AppConstants.farDistanceThresholdMeters) {
+          return 100; // Far: 100m filter
+        } else if (distanceMeters > AppConstants.mediumDistanceThresholdMeters) {
+          return 50; // Medium: 50m filter
+        } else if (distanceMeters > AppConstants.closeDistanceThresholdMeters) {
+          return 15; // Close: 15m filter
+        } else {
+          return 5; // Very close: 5m filter for maximum precision
+        }
     }
   }
 
   Future<void> _refreshNotification() async {
     if (!isJourneyActive || _selectedDestination == null) return;
 
-    final distStr = Formatters.formatDistance(_remainingDistanceMeters);
+    final distStr = Formatters.formatDistance(_remainingDistanceMeters, _distanceUnit);
     final etaStr = 'ETA: ~${_estimatedArrivalMinutes}m';
     final statusStr = _status == JourneyStatus.alarmActive
         ? '🚨 ALARM TRIGGERED'
@@ -344,14 +401,16 @@ class JourneyProvider with ChangeNotifier {
 
     final appSettings = await _repository.loadSettings();
 
-    // 1. Start loud looping audio and vibration
+    // 1. Start loud looping audio and vibration with user preferences
     await _alarmService.startAlarm(
       soundId: appSettings.alarmSoundId,
       vibrationEnabled: appSettings.vibrationEnabled,
+      vibrationPattern: appSettings.vibrationPattern,
+      volumeEscalation: appSettings.volumeEscalation,
     );
 
     // 2. Display urgent full screen alarm notification
-    final distStr = Formatters.formatDistance(_remainingDistanceMeters);
+    final distStr = Formatters.formatDistance(_remainingDistanceMeters, _distanceUnit);
     await _notificationService.showAlarmNotification(
       destinationName: _selectedDestination?.name ?? 'Destination',
       distanceFormatted: distStr,
@@ -374,7 +433,8 @@ class JourneyProvider with ChangeNotifier {
   }
 
   /// Snoozes alarm for [minutes] then triggers again.
-  Future<void> snoozeAlarm(int minutes) async {
+  Future<void> snoozeAlarm([int? minutes]) async {
+    final int duration = minutes ?? _snoozeDurationMinutes;
     await _alarmService.stopAlarm();
     await _notificationService.cancelAlarmNotification();
 
@@ -382,7 +442,7 @@ class JourneyProvider with ChangeNotifier {
     _hasTriggeredAlarmThisJourney = false; // Allow trigger again after snooze
     notifyListeners();
 
-    Timer(Duration(minutes: minutes), () {
+    Timer(Duration(minutes: duration), () {
       if (isJourneyActive && !_hasTriggeredAlarmThisJourney) {
         _triggerAlarm();
       }
@@ -450,12 +510,10 @@ class JourneyProvider with ChangeNotifier {
 
   /// Interactive Simulation:
   /// Gradually teleports/interpolates user position closer to the destination
-  /// to demonstrate real arrival detection and trigger the alarm live!
   void simulateApproachStep() {
     if (_selectedDestination == null || _currentPosition == null) return;
 
     final dest = _selectedDestination!.latLng;
-    // Step 70% closer to the destination inside or at the radius boundary
     final currentLat = _currentPosition!.latitude;
     final currentLng = _currentPosition!.longitude;
 
@@ -477,7 +535,19 @@ class JourneyProvider with ChangeNotifier {
   }
 
   /// Triggers alarm immediately for testing / preview.
-  void testAlarmImmediately() {
+  void testAlarmImmediately({Destination? testDestination}) {
+    if (_selectedDestination == null) {
+      _selectedDestination = testDestination ??
+          Destination(
+            name: 'Central Station (Test Alert)',
+            address: 'Alarm Test Preview',
+            latitude: _currentPosition?.latitude ?? 13.0839,
+            longitude: _currentPosition?.longitude ?? 80.2754,
+            radiusMeters: _radiusMeters,
+          );
+      _remainingDistanceMeters = 350;
+      _estimatedArrivalMinutes = 1;
+    }
     _triggerAlarm();
   }
 
@@ -485,6 +555,7 @@ class JourneyProvider with ChangeNotifier {
     _status = JourneyStatus.idle;
     _selectedDestination = null;
     _hasTriggeredAlarmThisJourney = false;
+    _hasTriggeredEarlyWarning = false;
     _warningMessage = null;
     notifyListeners();
   }

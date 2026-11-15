@@ -20,7 +20,6 @@ import 'package:proximity_alarm/services/routing_service.dart';
 void main() {
   testWidgets('App renders Home screen with navigation and start button',
       (WidgetTester tester) async {
-    // Provide phone-sized viewport
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
     addTearDown(() {
@@ -91,6 +90,10 @@ void main() {
         providers: [
           ChangeNotifierProvider(create: (_) => SettingsProvider(repository)),
           ChangeNotifierProvider(
+              create: (_) => SavedDestinationsProvider(repository)),
+          ChangeNotifierProvider(
+              create: (_) => JourneyHistoryProvider(repository)),
+          ChangeNotifierProvider(
             create: (_) => JourneyProvider(
               locationService: LocationService(),
               routingService: RoutingService(),
@@ -110,11 +113,16 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('APPEARANCE'), findsOneWidget);
+    expect(find.text('Settings & Customization'), findsOneWidget);
+    expect(find.text('APPEARANCE & THEME'), findsOneWidget);
     expect(find.text('System'), findsOneWidget);
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
-    expect(find.text('ALARM AUDIO & HAPTICS'), findsOneWidget);
+    expect(find.text('Accent Brand Color'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ALARM AUDIO, HAPTICS & DISMISSAL'), findsOneWidget);
   });
 }

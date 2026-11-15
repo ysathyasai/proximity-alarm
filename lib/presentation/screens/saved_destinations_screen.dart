@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/destination.dart';
 import '../../providers/journey_provider.dart';
 import '../../providers/saved_destinations_provider.dart';
+import '../../providers/settings_provider.dart';
 import 'destination_picker_screen.dart';
 
 class SavedDestinationsScreen extends StatelessWidget {
   const SavedDestinationsScreen({super.key});
 
   void _showAddEditDialog(BuildContext context, {Destination? existing}) {
+    final settings = context.read<SettingsProvider>();
+    final unit = settings.distanceUnit;
     final nameController =
         TextEditingController(text: existing?.name ?? '');
     final addressController =
         TextEditingController(text: existing?.address ?? '');
     String category = existing?.category ?? 'favorite';
-    double radius = existing?.radiusMeters ?? 2000.0;
+    double radius = existing?.radiusMeters ?? settings.defaultRadiusMeters;
 
     showDialog(
       context: context,
@@ -62,6 +66,37 @@ class SavedDestinationsScreen extends StatelessWidget {
                       );
                     }).toList(),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Alert Radius:',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                      Text(
+                        Formatters.formatDistance(radius, unit),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    value: radius.clamp(
+                      AppConstants.minRadiusMeters,
+                      AppConstants.maxRadiusMeters,
+                    ),
+                    min: AppConstants.minRadiusMeters,
+                    max: AppConstants.maxRadiusMeters,
+                    divisions: 49,
+                    onChanged: (val) {
+                      setState(() {
+                        radius = val;
+                      });
+                    },
+                  ),
                 ],
               ),
             ),
@@ -86,7 +121,6 @@ class SavedDestinationsScreen extends StatelessWidget {
                       ),
                     );
                   } else {
-                    // Create with current fallback coordinates
                     final journey = ctx.read<JourneyProvider>();
                     final pos = journey.currentPosition;
                     savedProvider.addDestination(
@@ -117,6 +151,8 @@ class SavedDestinationsScreen extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final saved = context.watch<SavedDestinationsProvider>();
     final journey = context.read<JourneyProvider>();
+    final settings = context.watch<SettingsProvider>();
+    final unit = settings.distanceUnit;
 
     return Scaffold(
       appBar: AppBar(
@@ -222,7 +258,7 @@ class SavedDestinationsScreen extends StatelessWidget {
                         ],
                         const SizedBox(height: 4),
                         Text(
-                          'Alert radius: ${Formatters.formatDistance(dest.radiusMeters)}',
+                          'Alert radius: ${Formatters.formatDistance(dest.radiusMeters, unit)}',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,

@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:proximity_alarm/core/constants/app_constants.dart';
+import 'package:proximity_alarm/core/utils/formatters.dart';
 import 'package:proximity_alarm/core/utils/geo_utils.dart';
 
 void main() {
   group('GeoUtils Unit Tests', () {
     test('calculateDistanceMeters calculates accurate Haversine distance', () {
-      // Chennai Central (13.0827, 80.2754) to Chennai Egmore (13.0784, 80.2606)
-      // Actual straight-line distance is ~1.67 km
       const start = LatLng(13.0827, 80.2754);
       const end = LatLng(13.0784, 80.2606);
 
@@ -24,9 +24,7 @@ void main() {
 
     test('isInsideAlertRadius correctly tests geofence boundary', () {
       const center = LatLng(13.0827, 80.2754);
-      // Close point: ~500m away
       const insidePoint = LatLng(13.0827, 80.2800);
-      // Far point: ~6km away
       const outsidePoint = LatLng(13.1300, 80.2754);
 
       expect(
@@ -51,14 +49,12 @@ void main() {
     test('isValidLocationUpdate rejects inaccurate GPS readings (>65m)', () {
       const pos = LatLng(13.0827, 80.2754);
 
-      // Inaccurate reading (e.g. 95m error)
       final bool invalid = GeoUtils.isValidLocationUpdate(
         newPosition: pos,
         accuracyMeters: 95.0,
       );
       expect(invalid, isFalse);
 
-      // Accurate reading (15m error)
       final bool valid = GeoUtils.isValidLocationUpdate(
         newPosition: pos,
         accuracyMeters: 15.0,
@@ -68,7 +64,6 @@ void main() {
 
     test('isValidLocationUpdate rejects impossible teleportation jumps', () {
       const pos1 = LatLng(13.0827, 80.2754);
-      // Teleport 20 km away in 2 seconds (implied speed = 10,000 m/s = 36,000 km/h!)
       const pos2 = LatLng(13.2500, 80.2754);
 
       final time1 = DateTime.now();
@@ -87,7 +82,6 @@ void main() {
 
     test('isValidLocationUpdate accepts normal moving transit updates', () {
       const pos1 = LatLng(13.0827, 80.2754);
-      // Move 80 meters in 5 seconds (16 m/s = ~57 km/h bus speed)
       const pos2 = LatLng(13.0834, 80.2754);
 
       final time1 = DateTime.now();
@@ -105,20 +99,18 @@ void main() {
     });
 
     test('estimateEtaMinutes handles transit speed and stationary signal fallback', () {
-      // 10 km distance at 30 km/h fallback (when stationary, speed = 0)
       final etaStopped = GeoUtils.estimateEtaMinutes(
         distanceMeters: 10000,
         currentSpeedMetersPerSec: 0,
         defaultSpeedKmh: 30.0,
       );
-      expect(etaStopped, equals(20)); // 10 km at 30 km/h = 20 mins
+      expect(etaStopped, equals(20));
 
-      // 6 km distance moving at 60 km/h (16.67 m/s)
       final etaMoving = GeoUtils.estimateEtaMinutes(
         distanceMeters: 6000,
         currentSpeedMetersPerSec: 16.67,
       );
-      expect(etaMoving, equals(6)); // 6 km at 60 km/h = 6 mins
+      expect(etaMoving, equals(6));
     });
 
     test('shouldTriggerAlarm triggers when distance is within radius regardless of timer', () {
@@ -132,38 +124,135 @@ void main() {
       expect(shouldTrigger, isTrue);
     });
 
-    test('shouldTriggerAlarm evaluates timer ONLY when useTimerAlert is true', () {
-      // Outside radius, but ETA is within 5-min prep window
-      // When useTimerAlert is FALSE (default): does NOT trigger on timer
+    test('shouldTriggerAlarm evaluates timer ONLY when useTimerAlert is true in combined mode', () {
       final noTimerTrigger = GeoUtils.shouldTriggerAlarm(
         distanceMeters: 3500.0,
         radiusMeters: 2000.0,
         etaMinutes: 4,
         prepWindowMinutes: 5,
+        alertMode: AlertMode.combined,
         useTimerAlert: false,
       );
       expect(noTimerTrigger, isFalse);
 
-      // When useTimerAlert is TRUE: DOES trigger on timer!
       final timerTrigger = GeoUtils.shouldTriggerAlarm(
         distanceMeters: 3500.0,
         radiusMeters: 2000.0,
         etaMinutes: 4,
         prepWindowMinutes: 5,
+        alertMode: AlertMode.combined,
         useTimerAlert: true,
       );
       expect(timerTrigger, isTrue);
     });
 
-    test('shouldTriggerAlarm does NOT trigger when far outside radius and prep window', () {
-      final shouldTrigger = GeoUtils.shouldTriggerAlarm(
-        distanceMeters: 8000.0,
+    test('shouldTriggerAlarm in fixedRadius mode ignores ETA completely', () {
+      final fixedRadiusNoTrigger = GeoUtils.shouldTriggerAlarm(
+        distanceMeters: 2500.0,
         radiusMeters: 2000.0,
-        etaMinutes: 18,
+        etaMinutes: 2,
         prepWindowMinutes: 5,
+        alertMode: AlertMode.fixedRadius,
         useTimerAlert: true,
       );
-      expect(shouldTrigger, isFalse);
+      expect(fixedRadiusNoTrigger, isFalse);
+
+      final fixedRadiusTrigger = GeoUtils.shouldTriggerAlarm(
+        distanceMeters: 1800.0,
+        radiusMeters: 2000.0,
+        etaMinutes: 10,
+        prepWindowMinutes: 5,
+        alertMode: AlertMode.fixedRadius,
+      );
+      expect(fixedRadiusTrigger, isTrue);
+    });
+
+    test('shouldTriggerAlarm in adaptiveEta mode triggers on ETA window or safety radius', () {
+      final etaTrigger = GeoUtils.shouldTriggerAlarm(
+        distanceMeters: 4000.0,
+        radiusMeters: 2000.0,
+        etaMinutes: 4,
+        prepWindowMinutes: 5,
+        alertMode: AlertMode.adaptiveEta,
+      );
+      expect(etaTrigger, isTrue);
+
+      final safetyFallback = GeoUtils.shouldTriggerAlarm(
+        distanceMeters: 450.0,
+        radiusMeters: 2000.0,
+        etaMinutes: 0, // ETA unknown or signal lost
+        prepWindowMinutes: 5,
+        alertMode: AlertMode.adaptiveEta,
+      );
+      expect(safetyFallback, isTrue);
+    });
+
+    test('shouldTriggerEarlyWarning detects approach at 2x radius or 2x prep window', () {
+      // 3.5 km away with 2 km radius -> inside 2x radius (4 km)
+      final earlyRadius = GeoUtils.shouldTriggerEarlyWarning(
+        distanceMeters: 3500.0,
+        radiusMeters: 2000.0,
+        etaMinutes: 15,
+        prepWindowMinutes: 5,
+      );
+      expect(earlyRadius, isTrue);
+
+      // 8 km away, 15 min ETA with 10 min 2x window -> false
+      final notYet = GeoUtils.shouldTriggerEarlyWarning(
+        distanceMeters: 8000.0,
+        radiusMeters: 2000.0,
+        etaMinutes: 15,
+        prepWindowMinutes: 5,
+      );
+      expect(notYet, isFalse);
+    });
+  });
+
+  group('Formatters Unit Tests', () {
+    test('formatDistance handles Metric and Imperial units accurately', () {
+      // 2000m in Metric -> '2.0 km'
+      expect(
+        Formatters.formatDistance(2000.0, DistanceUnit.metric),
+        equals('2.0 km'),
+      );
+      // 450m in Metric -> '450 m'
+      expect(
+        Formatters.formatDistance(450.0, DistanceUnit.metric),
+        equals('450 m'),
+      );
+
+      // 2000m (~1.24 miles) in Imperial -> '1.2 mi'
+      expect(
+        Formatters.formatDistance(2000.0, DistanceUnit.imperial),
+        equals('1.2 mi'),
+      );
+      // 100m (~328 feet) in Imperial -> '328 ft'
+      expect(
+        Formatters.formatDistance(100.0, DistanceUnit.imperial),
+        equals('328 ft'),
+      );
+    });
+
+    test('formatSpeed handles Metric and Imperial units', () {
+      // 15 m/s = 54 km/h
+      expect(
+        Formatters.formatSpeed(15.0, DistanceUnit.metric),
+        equals('54 km/h'),
+      );
+      // 15 m/s = ~34 mph
+      expect(
+        Formatters.formatSpeed(15.0, DistanceUnit.imperial),
+        equals('34 mph'),
+      );
+      // Stopped
+      expect(
+        Formatters.formatSpeed(0.0, DistanceUnit.metric),
+        equals('0 km/h'),
+      );
+      expect(
+        Formatters.formatSpeed(0.0, DistanceUnit.imperial),
+        equals('0 mph'),
+      );
     });
   });
 }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../data/models/journey.dart';
 import '../../providers/journey_history_provider.dart';
+import '../../providers/settings_provider.dart';
 
 class JourneyHistoryScreen extends StatelessWidget {
   const JourneyHistoryScreen({super.key});
@@ -13,6 +14,7 @@ class JourneyHistoryScreen extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final historyProvider = context.watch<JourneyHistoryProvider>();
     final history = historyProvider.history;
+    final settings = context.watch<SettingsProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -156,7 +158,7 @@ class JourneyHistoryScreen extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Duration: ${Formatters.formatDurationMinutes(journey.durationMinutes)}',
+                              'Duration: ${Formatters.formatDurationMinutes(journey.durationMinutes)} • ${Formatters.formatDistance(journey.initialDistanceMeters, settings.distanceUnit)}',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,

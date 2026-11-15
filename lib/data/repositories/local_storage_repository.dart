@@ -38,6 +38,11 @@ class LocalStorageRepository {
     await _prefs.setString(_keySettings, jsonStr);
   }
 
+  /// Resets user settings to factory defaults without deleting saved destinations or journey history.
+  Future<void> resetSettingsToDefault() async {
+    await _prefs.remove(_keySettings);
+  }
+
   // Saved Destinations
   Future<List<Destination>> loadSavedDestinations() async {
     final String? jsonStr = _prefs.getString(_keySavedDestinations);
@@ -78,6 +83,10 @@ class LocalStorageRepository {
     await _prefs.setString(_keySavedDestinations, jsonStr);
   }
 
+  Future<void> clearSavedDestinations() async {
+    await _prefs.remove(_keySavedDestinations);
+  }
+
   // Journey History
   Future<List<Journey>> loadJourneyHistory() async {
     final String? jsonStr = _prefs.getString(_keyJourneyHistory);
@@ -98,6 +107,10 @@ class LocalStorageRepository {
     final String jsonStr =
         jsonEncode(history.map((j) => j.toJson()).toList());
     await _prefs.setString(_keyJourneyHistory, jsonStr);
+  }
+
+  Future<void> clearJourneyHistory() async {
+    await _prefs.remove(_keyJourneyHistory);
   }
 
   Future<void> addJourneyToHistory(Journey journey) async {
@@ -131,4 +144,3 @@ class LocalStorageRepository {
     }
   }
 }
-
