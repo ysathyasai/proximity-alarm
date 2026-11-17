@@ -394,7 +394,9 @@ class _ActiveJourneyScreenState extends State<ActiveJourneyScreen> {
                                 child: MetricBadge(
                                   icon: Icons.access_time_rounded,
                                   label: jp.useTimerAlert ? 'ESTIMATED ARRIVAL' : 'ETA (TIMER OFF)',
-                                  value: Formatters.formatDurationMinutes(etaMinutes),
+                                  value: etaMinutes > 0
+                                      ? '${Formatters.formatDurationMinutes(etaMinutes)} (${Formatters.formatEtaClockTime(etaMinutes)})'
+                                      : Formatters.formatDurationMinutes(etaMinutes),
                                   iconColor: const Color(0xFFF59E0B),
                                 ),
                               ),

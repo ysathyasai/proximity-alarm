@@ -266,5 +266,17 @@ void main() {
         equals('0 mph'),
       );
     });
+
+    test('formatEtaClockTime and formatDurationMinutes formats arrival time cleanly', () {
+      expect(Formatters.formatDurationMinutes(0), equals('Arrived'));
+      expect(Formatters.formatDurationMinutes(25), equals('25 min'));
+      expect(Formatters.formatDurationMinutes(60), equals('1 hr'));
+      expect(Formatters.formatDurationMinutes(75), equals('1 hr 15 min'));
+
+      expect(Formatters.formatEtaClockTime(0), equals('Now'));
+      final clockTime = Formatters.formatEtaClockTime(30);
+      expect(clockTime.isNotEmpty, isTrue);
+      expect(clockTime, isNot(equals('Now')));
+    });
   });
 }

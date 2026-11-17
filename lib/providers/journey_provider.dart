@@ -495,7 +495,10 @@ class JourneyProvider with ChangeNotifier {
     if (!isJourneyActive || _selectedDestination == null) return;
 
     final distStr = Formatters.formatDistance(_remainingDistanceMeters, _distanceUnit);
-    final etaStr = 'ETA: ~${_estimatedArrivalMinutes}m';
+    final etaClock = _estimatedArrivalMinutes > 0
+        ? ' (~${Formatters.formatEtaClockTime(_estimatedArrivalMinutes)})'
+        : '';
+    final etaStr = 'ETA: ~${_estimatedArrivalMinutes}m$etaClock';
     final statusStr = _status == JourneyStatus.alarmActive
         ? '🚨 ALARM TRIGGERED'
         : _status == JourneyStatus.approaching
