@@ -293,10 +293,10 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
                             onPressed: () {
-                              journey.selectDestination(
-                                _pickedDestination!.copyWith(
-                                    radiusMeters: _radiusMeters),
-                              );
+                              final confirmed = _pickedDestination!.copyWith(
+                                  radiusMeters: _radiusMeters);
+                              journey.selectDestination(confirmed);
+                              saved.addRecentSearch(confirmed);
                               Navigator.of(context).pop();
                             },
                             child: const Text(

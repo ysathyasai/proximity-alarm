@@ -98,6 +98,7 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
       _suggestions = [];
     });
     _focusNode.unfocus();
+    context.read<SavedDestinationsProvider>().addRecentSearch(dest);
     widget.onDestinationSelected(dest);
   }
 
@@ -105,10 +106,34 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final savedDestinations = context.watch<SavedDestinationsProvider>().destinations;
+    final savedProvider = context.watch<SavedDestinationsProvider>();
+    final savedDestinations = savedProvider.destinations;
+    final recentSearches = savedProvider.recentSearches;
 
-    final bool showingSaved =
-        _controller.text.trim().isEmpty && savedDestinations.isNotEmpty;
+    final String query = _controller.text.trim().toLowerCase();
+    final bool isEmptyQuery = query.isEmpty;
+
+    // Offline / Local matches when search has no network results
+    final List<Destination> offlineMatches = isEmptyQuery
+        ? []
+        : [
+            ...savedDestinations,
+            ...recentSearches,
+          ]
+            .where((d) =>
+                d.name.toLowerCase().contains(query) ||
+                d.address.toLowerCase().contains(query))
+            .fold<List<Destination>>([], (list, item) {
+            if (!list.any((d) =>
+                d.name.toLowerCase() == item.name.toLowerCase() ||
+                (d.latitude == item.latitude && d.longitude == item.longitude))) {
+              list.add(item);
+            }
+            return list;
+          });
+
+    final bool hasInitialDropdownItems =
+        isEmptyQuery && (savedDestinations.isNotEmpty || recentSearches.isNotEmpty);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -148,12 +173,15 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
           ),
         ),
 
-        // Dropdown Suggestions (Search results OR Quick Saved Places)
+        // Dropdown Suggestions (Search results, Offline Fallback, OR Quick Saved/Recent Places)
         if (_showDropdown &&
-            (showingSaved || _suggestions.isNotEmpty || _isLoading))
+            (hasInitialDropdownItems ||
+                _suggestions.isNotEmpty ||
+                offlineMatches.isNotEmpty ||
+                _isLoading))
           Container(
             margin: const EdgeInsets.only(top: 6),
-            constraints: const BoxConstraints(maxHeight: 280),
+            constraints: const BoxConstraints(maxHeight: 320),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF1E293B) : Colors.white,
               borderRadius: BorderRadius.circular(16),
@@ -168,87 +196,123 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
                 ),
               ],
             ),
-            child: showingSaved
-                ? ListView.separated(
+            child: isEmptyQuery
+                ? ListView(
                     shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    itemCount: savedDestinations.length,
-                    separatorBuilder: (_, _) => Divider(
-                      height: 1,
-                      color: isDark
-                          ? const Color(0xFF334155)
-                          : const Color(0xFFF1F5F9),
-                    ),
-                    itemBuilder: (context, index) {
-                      final item = savedDestinations[index];
-                      IconData catIcon = Icons.place_rounded;
-                      if (item.category == 'home') catIcon = Icons.home_rounded;
-                      if (item.category == 'work') catIcon = Icons.work_rounded;
-                      if (item.category == 'station') catIcon = Icons.train_rounded;
-                      if (item.category == 'favorite') catIcon = Icons.star_rounded;
-
-                      return ListTile(
-                        dense: true,
-                        leading: Icon(catIcon, color: theme.colorScheme.primary, size: 20),
-                        title: Text(
-                          item.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          item.address,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF64748B),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text('Saved', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                        ),
-                        onTap: () => _selectSuggestion(item),
-                      );
-                    },
-                  )
-                : _isLoading && _suggestions.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    children: [
+                      // Saved places section
+                      if (savedDestinations.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
                           child: Text(
-                            'Searching places...',
-                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                            'SAVED PLACES',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.8,
+                              color: isDark
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B),
+                            ),
                           ),
                         ),
-                      )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        itemCount: _suggestions.length,
-                        separatorBuilder: (_, _) => Divider(
-                          height: 1,
-                          color: isDark
-                              ? const Color(0xFF334155)
-                              : const Color(0xFFF1F5F9),
+                        ...savedDestinations.map((item) {
+                          IconData catIcon = Icons.place_rounded;
+                          if (item.category == 'home') catIcon = Icons.home_rounded;
+                          if (item.category == 'work') catIcon = Icons.work_rounded;
+                          if (item.category == 'station') catIcon = Icons.train_rounded;
+                          if (item.category == 'favorite') catIcon = Icons.star_rounded;
+
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(catIcon,
+                                color: theme.colorScheme.primary, size: 20),
+                            title: Text(
+                              item.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              item.address,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary
+                                    .withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('Saved',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                            onTap: () => _selectSuggestion(item),
+                          );
+                        }),
+                      ],
+
+                      // Recent searches section
+                      if (recentSearches.isNotEmpty) ...[
+                        if (savedDestinations.isNotEmpty)
+                          Divider(
+                            height: 12,
+                            color: isDark
+                                ? const Color(0xFF334155)
+                                : const Color(0xFFF1F5F9),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'RECENT SEARCHES',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                  color: isDark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => savedProvider.clearRecentSearches(),
+                                child: Text(
+                                  'Clear',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        itemBuilder: (context, index) {
-                          final item = _suggestions[index];
+                        ...recentSearches.map((item) {
                           return ListTile(
                             dense: true,
                             leading: Icon(
-                              Icons.location_on_outlined,
-                              color: theme.colorScheme.primary,
+                              Icons.history_rounded,
+                              color: isDark
+                                  ? const Color(0xFF94A3B8)
+                                  : const Color(0xFF64748B),
                               size: 20,
                             ),
                             title: Text(
@@ -271,6 +335,90 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            onTap: () => _selectSuggestion(item),
+                          );
+                        }),
+                      ],
+                    ],
+                  )
+                : _isLoading && _suggestions.isEmpty && offlineMatches.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(
+                          child: Text(
+                            'Searching places...',
+                            style: TextStyle(fontSize: 13, color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        itemCount: _suggestions.isNotEmpty
+                            ? _suggestions.length
+                            : offlineMatches.length,
+                        separatorBuilder: (_, _) => Divider(
+                          height: 1,
+                          color: isDark
+                              ? const Color(0xFF334155)
+                              : const Color(0xFFF1F5F9),
+                        ),
+                        itemBuilder: (context, index) {
+                          final isFromNetwork = _suggestions.isNotEmpty;
+                          final item = isFromNetwork
+                              ? _suggestions[index]
+                              : offlineMatches[index];
+
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(
+                              isFromNetwork
+                                  ? Icons.location_on_outlined
+                                  : Icons.cloud_off_rounded,
+                              color: isFromNetwork
+                                  ? theme.colorScheme.primary
+                                  : const Color(0xFF10B981),
+                              size: 20,
+                            ),
+                            title: Text(
+                              item.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              item.address,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? const Color(0xFF94A3B8)
+                                    : const Color(0xFF64748B),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: !isFromNetwork
+                                ? Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF10B981)
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'Offline',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF059669),
+                                      ),
+                                    ),
+                                  )
+                                : null,
                             onTap: () => _selectSuggestion(item),
                           );
                         },

@@ -5,6 +5,7 @@ import '../data/repositories/local_storage_repository.dart';
 class SavedDestinationsProvider with ChangeNotifier {
   final LocalStorageRepository _repository;
   List<Destination> _destinations = [];
+  List<Destination> _recentSearches = [];
   bool _isLoading = true;
 
   SavedDestinationsProvider(this._repository) {
@@ -12,12 +13,14 @@ class SavedDestinationsProvider with ChangeNotifier {
   }
 
   List<Destination> get destinations => List.unmodifiable(_destinations);
+  List<Destination> get recentSearches => List.unmodifiable(_recentSearches);
   bool get isLoading => _isLoading;
 
   Future<void> _loadDestinations() async {
     _isLoading = true;
     notifyListeners();
     _destinations = await _repository.loadSavedDestinations();
+    _recentSearches = await _repository.loadRecentSearches();
     _isLoading = false;
     notifyListeners();
   }
@@ -57,6 +60,18 @@ class SavedDestinationsProvider with ChangeNotifier {
     _destinations.clear();
     notifyListeners();
     await _repository.clearSavedDestinations();
+  }
+
+  Future<void> addRecentSearch(Destination destination) async {
+    await _repository.addRecentSearch(destination);
+    _recentSearches = await _repository.loadRecentSearches();
+    notifyListeners();
+  }
+
+  Future<void> clearRecentSearches() async {
+    await _repository.clearRecentSearches();
+    _recentSearches = [];
+    notifyListeners();
   }
 }
 

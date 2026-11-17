@@ -297,6 +297,7 @@ class HomeMainView extends StatelessWidget {
                     onPressed: () {
                       HapticFeedback.selectionClick();
                       journey.selectDestination(item);
+                      saved.addRecentSearch(item);
                     },
                   );
                 },
@@ -640,6 +641,11 @@ class HomeMainView extends StatelessWidget {
                     }
                   : () async {
                       HapticFeedback.heavyImpact();
+                      if (!settings.hasSeenBatteryGuidance) {
+                        await BatteryGuidanceSheet.show(context);
+                        await settings.markBatteryGuidanceSeen();
+                      }
+                      if (!context.mounted) return;
                       final started = await journey.startJourney(
                         settings: settings.settings,
                       );

@@ -30,7 +30,7 @@ class AlarmService {
             stayAwake: true,
             contentType: AndroidContentType.sonification,
             usageType: AndroidUsageType.alarm,
-            audioFocus: AndroidAudioFocus.gainTransient,
+            audioFocus: AndroidAudioFocus.gainTransientExclusive,
           ),
         ),
       );

@@ -1,6 +1,7 @@
 // ignore_for_file: prefer_initializing_formals
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/constants/app_constants.dart';
 import '../core/utils/formatters.dart';
@@ -62,6 +63,7 @@ class JourneyProvider with ChangeNotifier {
   String? _warningMessage;
 
   StreamSubscription<LocationReading>? _locationSubscription;
+  StreamSubscription<ServiceStatus>? _serviceStatusSubscription;
   Timer? _notificationUpdateTimer;
   Timer? _simulationTimer;
 
@@ -80,6 +82,7 @@ class JourneyProvider with ChangeNotifier {
         _repository = repository {
     _initListeners();
     _fetchInitialLocation();
+    _recoverActiveJourney();
   }
 
   // Getters
@@ -139,6 +142,105 @@ class JourneyProvider with ChangeNotifier {
         dismissAlarm();
       }
     });
+
+    _serviceStatusSubscription =
+        _locationService.serviceStatusStream.listen((status) {
+      if (status == ServiceStatus.disabled) {
+        if (isJourneyActive) {
+          _warningMessage =
+              '⚠️ GPS is disabled! Turn on Location Services to keep alarm active.';
+          notifyListeners();
+          _refreshNotification();
+        }
+      } else if (status == ServiceStatus.enabled) {
+        if (_warningMessage?.contains('GPS is disabled') ?? false) {
+          _warningMessage = null;
+          notifyListeners();
+          _refreshNotification();
+        }
+      }
+    });
+  }
+
+  Future<void> _recoverActiveJourney() async {
+    try {
+      final active = await _repository.loadActiveJourney();
+      if (active != null) {
+        final diff = DateTime.now().difference(active.startTime);
+        if (diff.inHours < 12) {
+          _selectedDestination = active.destination;
+          _radiusMeters = active.alertRadiusMeters;
+          _prepWindowMinutes = active.prepWindowMinutes;
+          _journeyStartTime = active.startTime;
+          _initialDistanceMeters = active.initialDistanceMeters;
+          _status = JourneyStatus.active;
+
+          final settings = await _repository.loadSettings();
+          _alertMode = settings.alertMode;
+          _useTimerAlert = settings.useTimerAlert;
+          _monitoringProfile = settings.monitoringProfile;
+          _distanceUnit = settings.distanceUnit;
+          _earlyWarningEnabled = settings.earlyWarningEnabled;
+          _snoozeDurationMinutes = settings.snoozeDurationMinutes;
+
+          final fix = await _locationService.getCurrentLocation();
+          if (fix != null) {
+            _currentPosition = fix.position;
+            _currentAccuracy = fix.accuracy;
+            _currentSpeedMps = fix.speedMetersPerSec;
+            _currentHeading = fix.heading;
+            final dist = GeoUtils.calculateDistanceMeters(
+              _currentPosition!,
+              active.destination.latLng,
+            );
+            _remainingDistanceMeters = dist;
+            _estimatedArrivalMinutes = GeoUtils.estimateEtaMinutes(
+              distanceMeters: dist,
+              currentSpeedMetersPerSec: _currentSpeedMps,
+            );
+          }
+
+          await _backgroundService.startForegroundMonitoring(
+            destinationName: active.destination.name,
+            destinationLat: active.destination.latitude,
+            destinationLng: active.destination.longitude,
+            radiusMeters: _radiusMeters,
+            prepWindowMinutes: _prepWindowMinutes,
+            initialStatusText:
+                'Resumed tracking to ${active.destination.name} (${Formatters.formatDistance(_remainingDistanceMeters, _distanceUnit)})',
+          );
+
+          _locationService.startTracking(
+            distanceFilterMeters: _getAdaptiveDistanceFilter(
+              _remainingDistanceMeters > 0
+                  ? _remainingDistanceMeters
+                  : active.alertRadiusMeters,
+            ),
+          );
+
+          _locationSubscription?.cancel();
+          _locationSubscription =
+              _locationService.locationStream.listen(_onLocationUpdate);
+
+          _notificationUpdateTimer?.cancel();
+          _notificationUpdateTimer = Timer.periodic(
+            const Duration(seconds: 45),
+            (_) => _refreshNotification(),
+          );
+
+          if (_currentPosition != null) {
+            _calculateInitialRoute();
+          }
+
+          notifyListeners();
+        } else {
+          // Stale active journey older than 12h, clear it
+          await _repository.saveActiveJourney(null);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error recovering active journey: $e');
+    }
   }
 
   Future<void> _fetchInitialLocation() async {
@@ -577,6 +679,7 @@ class JourneyProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _serviceStatusSubscription?.cancel();
     _locationSubscription?.cancel();
     _notificationUpdateTimer?.cancel();
     _simulationTimer?.cancel();

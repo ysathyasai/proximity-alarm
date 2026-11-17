@@ -9,6 +9,7 @@ class LocalStorageRepository {
   static const String _keySavedDestinations = 'proximity_alarm_saved_destinations';
   static const String _keyJourneyHistory = 'proximity_alarm_journey_history';
   static const String _keyActiveJourney = 'proximity_alarm_active_journey';
+  static const String _keyRecentSearches = 'proximity_alarm_recent_searches';
 
   final SharedPreferences _prefs;
 
@@ -142,5 +143,39 @@ class LocalStorageRepository {
       final String jsonStr = jsonEncode(journey.toJson());
       await _prefs.setString(_keyActiveJourney, jsonStr);
     }
+  }
+
+  // Recent Searches (for instant offline suggestions)
+  Future<List<Destination>> loadRecentSearches() async {
+    final String? jsonStr = _prefs.getString(_keyRecentSearches);
+    if (jsonStr == null) return [];
+    try {
+      final List<dynamic> list = jsonDecode(jsonStr);
+      return list
+          .map((item) => Destination.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> addRecentSearch(Destination destination) async {
+    final List<Destination> recents = await loadRecentSearches();
+    recents.removeWhere((d) =>
+        d.name.toLowerCase() == destination.name.toLowerCase() ||
+        (d.latitude == destination.latitude &&
+            d.longitude == destination.longitude));
+    recents.insert(0, destination);
+    if (recents.length > 10) {
+      recents.removeRange(10, recents.length);
+    }
+    await _prefs.setString(
+      _keyRecentSearches,
+      jsonEncode(recents.map((d) => d.toJson()).toList()),
+    );
+  }
+
+  Future<void> clearRecentSearches() async {
+    await _prefs.remove(_keyRecentSearches);
   }
 }

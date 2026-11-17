@@ -43,6 +43,7 @@ class LocationService {
   int _currentDistanceFilter = 15;
 
   Stream<LocationReading> get locationStream => _locationController.stream;
+  Stream<ServiceStatus> get serviceStatusStream => Geolocator.getServiceStatusStream();
   LocationReading? get lastValidReading => _lastValidReading;
   int get currentDistanceFilter => _currentDistanceFilter;
 

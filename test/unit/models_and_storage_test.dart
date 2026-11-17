@@ -140,5 +140,59 @@ void main() {
       expect(history.length, equals(1));
       expect(history.first.destination.name, equals('Test Dest'));
     });
+
+    test('recentSearches management stores, deduplicates, and limits to 10 entries', () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await LocalStorageRepository.getInstance();
+
+      final d1 = Destination(name: 'Station A', address: '123 St', latitude: 10.0, longitude: 20.0);
+      final d2 = Destination(name: 'Airport B', address: '456 Ave', latitude: 11.0, longitude: 21.0);
+
+      await repo.addRecentSearch(d1);
+      await repo.addRecentSearch(d2);
+
+      var recents = await repo.loadRecentSearches();
+      expect(recents.length, equals(2));
+      expect(recents.first.name, equals('Airport B'));
+
+      // Re-adding d1 should move it to the top without duplicate
+      await repo.addRecentSearch(d1);
+      recents = await repo.loadRecentSearches();
+      expect(recents.length, equals(2));
+      expect(recents.first.name, equals('Station A'));
+
+      await repo.clearRecentSearches();
+      recents = await repo.loadRecentSearches();
+      expect(recents, isEmpty);
+    });
+
+    test('activeJourney save and load recovers state', () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await LocalStorageRepository.getInstance();
+
+      expect(await repo.loadActiveJourney(), isNull);
+
+      final dest = Destination(name: 'Recovery Station', address: 'Mainline', latitude: 13.0, longitude: 80.0);
+      final active = Journey(
+        destination: dest,
+        startTime: DateTime.now(),
+        startLatitude: 13.0,
+        startLongitude: 80.0,
+        initialDistanceMeters: 8000.0,
+        alertRadiusMeters: 1500.0,
+        prepWindowMinutes: 6,
+        outcome: JourneyOutcome.inProgress,
+      );
+
+      await repo.saveActiveJourney(active);
+      final recovered = await repo.loadActiveJourney();
+      expect(recovered, isNotNull);
+      expect(recovered!.destination.name, equals('Recovery Station'));
+      expect(recovered.alertRadiusMeters, equals(1500.0));
+      expect(recovered.prepWindowMinutes, equals(6));
+
+      await repo.saveActiveJourney(null);
+      expect(await repo.loadActiveJourney(), isNull);
+    });
   });
 }

@@ -34,6 +34,9 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider<LocalStorageRepository>.value(
+          value: storageRepository,
+        ),
         ChangeNotifierProvider(
           create: (_) => SettingsProvider(storageRepository),
         ),
