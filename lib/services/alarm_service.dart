@@ -10,6 +10,7 @@ class AlarmService {
   Timer? _previewTimer;
   Timer? _escalationTimer;
   String? _currentlyPreviewingSoundId;
+  void Function(String?)? onPreviewStateChanged;
 
   bool get isAlarmPlaying => _isAlarmPlaying;
   String? get currentlyPreviewingSoundId => _currentlyPreviewingSoundId;
@@ -144,6 +145,7 @@ class AlarmService {
   void _stopPreview() {
     _previewTimer?.cancel();
     _currentlyPreviewingSoundId = null;
+    onPreviewStateChanged?.call(null);
   }
 
   /// Plays or stops a 3.5-second preview of a selected alarm sound for settings screen.
@@ -159,6 +161,7 @@ class AlarmService {
 
     _stopPreview();
     _currentlyPreviewingSoundId = soundId;
+    onPreviewStateChanged?.call(soundId);
 
     try {
       final assetPath = AppConstants.soundAssetPaths[soundId] ??
@@ -175,6 +178,7 @@ class AlarmService {
       _previewTimer = Timer(const Duration(milliseconds: 3500), () {
         _audioPlayer.stop();
         _currentlyPreviewingSoundId = null;
+        onPreviewStateChanged?.call(null);
       });
     } catch (_) {
       _stopPreview();

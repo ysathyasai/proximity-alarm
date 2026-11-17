@@ -19,13 +19,28 @@ class SavedDestinationsProvider with ChangeNotifier {
   Future<void> _loadDestinations() async {
     _isLoading = true;
     notifyListeners();
-    _destinations = await _repository.loadSavedDestinations();
-    _recentSearches = await _repository.loadRecentSearches();
+    final loaded = await _repository.loadSavedDestinations();
+    final recents = await _repository.loadRecentSearches();
+    for (final item in _destinations) {
+      if (!loaded.any((d) => d.id == item.id)) {
+        loaded.insert(0, item);
+      }
+    }
+    for (final item in _recentSearches) {
+      if (!recents.any((d) => d.name == item.name)) {
+        recents.insert(0, item);
+      }
+    }
+    _destinations = loaded;
+    _recentSearches = recents;
     _isLoading = false;
     notifyListeners();
   }
 
   Future<void> addDestination(Destination destination) async {
+    if (_isLoading) {
+      await _loadDestinations();
+    }
     // Avoid duplicates by coordinates and name
     final existingIndex = _destinations.indexWhere((d) =>
         d.id == destination.id ||

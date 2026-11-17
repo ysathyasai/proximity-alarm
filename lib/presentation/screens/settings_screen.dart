@@ -22,7 +22,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final AlarmService _alarmService = AlarmService();
 
   @override
+  void initState() {
+    super.initState();
+    _alarmService.onPreviewStateChanged = (_) {
+      if (mounted) setState(() {});
+    };
+  }
+
+  @override
   void dispose() {
+    _alarmService.onPreviewStateChanged = null;
     _alarmService.dispose();
     super.dispose();
   }

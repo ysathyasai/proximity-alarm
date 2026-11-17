@@ -5,6 +5,7 @@ import 'package:proximity_alarm/data/models/app_settings.dart';
 import 'package:proximity_alarm/data/models/destination.dart';
 import 'package:proximity_alarm/data/models/journey.dart';
 import 'package:proximity_alarm/data/repositories/local_storage_repository.dart';
+import 'package:proximity_alarm/providers/journey_history_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -193,6 +194,47 @@ void main() {
 
       await repo.saveActiveJourney(null);
       expect(await repo.loadActiveJourney(), isNull);
+    });
+
+    test('JourneyHistoryProvider deleteJourney removes single trip and persists', () async {
+      SharedPreferences.setMockInitialValues({});
+      final repo = await LocalStorageRepository.getInstance();
+      final provider = JourneyHistoryProvider(repo);
+
+      final j1 = Journey(
+        id: 'j_1',
+        destination: Destination(name: 'Trip 1', address: 'A', latitude: 10.0, longitude: 20.0),
+        startTime: DateTime.now(),
+        startLatitude: 10.0,
+        startLongitude: 20.0,
+        initialDistanceMeters: 5000.0,
+        alertRadiusMeters: 2000.0,
+        prepWindowMinutes: 5,
+        outcome: JourneyOutcome.completedNormally,
+      );
+      final j2 = Journey(
+        id: 'j_2',
+        destination: Destination(name: 'Trip 2', address: 'B', latitude: 11.0, longitude: 21.0),
+        startTime: DateTime.now(),
+        startLatitude: 11.0,
+        startLongitude: 21.0,
+        initialDistanceMeters: 6000.0,
+        alertRadiusMeters: 2000.0,
+        prepWindowMinutes: 5,
+        outcome: JourneyOutcome.alarmTriggeredAndDismissed,
+      );
+
+      await provider.recordJourney(j1);
+      await provider.recordJourney(j2);
+      expect(provider.history.length, equals(2));
+
+      await provider.deleteJourney('j_1');
+      expect(provider.history.length, equals(1));
+      expect(provider.history.first.id, equals('j_2'));
+
+      final loaded = await repo.loadJourneyHistory();
+      expect(loaded.length, equals(1));
+      expect(loaded.first.id, equals('j_2'));
     });
   });
 }

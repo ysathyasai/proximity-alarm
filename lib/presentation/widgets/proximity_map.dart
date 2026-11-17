@@ -57,6 +57,15 @@ class _ProximityMapState extends State<ProximityMap> {
     _mapController = widget.mapController ?? MapController();
   }
 
+  @override
+  void didUpdateWidget(covariant ProximityMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.destinationPosition != null &&
+        widget.destinationPosition != oldWidget.destinationPosition) {
+      _mapController.move(widget.destinationPosition!, 14.5);
+    }
+  }
+
   void _recenter(LatLng point, double zoom) {
     _mapController.move(point, zoom);
   }
