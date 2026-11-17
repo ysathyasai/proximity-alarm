@@ -1,227 +1,464 @@
+// ignore_for_file: prefer_initializing_formals
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:permission_handler/permission_handler.dart';
+import '../core/constants/app_constants.dart';
+import '../core/utils/formatters.dart';
+import '../core/utils/geo_utils.dart';
+import '../core/utils/permission_utils.dart';
+import '../data/models/app_settings.dart';
+import '../data/models/destination.dart';
+import '../data/models/journey.dart';
+import '../data/repositories/local_storage_repository.dart';
+import '../services/alarm_service.dart';
+import '../services/background_monitoring_service.dart';
+import '../services/location_service.dart';
+import '../services/notification_service.dart';
+import '../services/routing_service.dart';
 
-import '../models/destination.dart';
-import '../models/tracking_state.dart';
-import '../services/background_service.dart';
-import '../services/local_store.dart';
-import '../services/settings_service.dart';
+enum JourneyStatus {
+  idle,
+  configuring,
+  active,
+  approaching,
+  alarmActive,
+  dismissed,
+  cancelled,
+}
 
-/// Central state manager coordinating destination selection, live GPS streaming,
-/// background service synchronisation, and trip history.
-class JourneyProvider extends ChangeNotifier {
+class JourneyProvider with ChangeNotifier {
+  final LocationService _locationService;
+  final RoutingService _routingService;
+  final AlarmService _alarmService;
+  final NotificationService _notificationService;
+  final BackgroundMonitoringService _backgroundService;
+  final LocalStorageRepository _repository;
+
+  JourneyStatus _status = JourneyStatus.idle;
+  Destination? _selectedDestination;
+  double _radiusMeters = AppConstants.defaultRadiusMeters;
+  int _prepWindowMinutes = AppConstants.defaultPrepWindowMinutes;
+
+  LatLng? _currentPosition;
+  double _currentAccuracy = 0.0;
+  double _currentSpeedMps = 0.0;
+  double _remainingDistanceMeters = 0.0;
+  int _estimatedArrivalMinutes = 0;
+
+  List<LatLng> _routePolyline = [];
+  bool _isRoadRoute = false;
+
+  bool _hasTriggeredAlarmThisJourney = false;
+  DateTime? _journeyStartTime;
+  double _initialDistanceMeters = 0.0;
+  String? _warningMessage;
+
+  StreamSubscription<LocationReading>? _locationSubscription;
+  Timer? _notificationUpdateTimer;
+  Timer? _simulationTimer;
+
   JourneyProvider({
-    TransitBackgroundService? backgroundService,
-    LocalStore? localStore,
-    SettingsService? settingsService,
-  })  : _bg = backgroundService ?? TransitBackgroundService.instance,
-        _store = localStore ?? LocalStore(),
-        _settings = settingsService ?? SettingsService.instance;
-
-  final TransitBackgroundService _bg;
-  final LocalStore _store;
-  final SettingsService _settings;
-
-  Destination? _destination;
-  double _radiusMeters = 1000.0;
-  TrackingSnapshot _snapshot = const TrackingSnapshot();
-  LatLng? _liveUserPosition;
-  double _liveSpeedKmh = 0.0;
-  List<Destination> _savedDestinations = [];
-  List<Map<String, dynamic>> _tripHistory = [];
-  bool _isInitialized = false;
-
-  StreamSubscription<Position>? _positionSub;
-  StreamSubscription<Map<String, dynamic>?>? _bgSub;
+    required LocationService locationService,
+    required RoutingService routingService,
+    required AlarmService alarmService,
+    required NotificationService notificationService,
+    required BackgroundMonitoringService backgroundService,
+    required LocalStorageRepository repository,
+  })  : _locationService = locationService,
+        _routingService = routingService,
+        _alarmService = alarmService,
+        _notificationService = notificationService,
+        _backgroundService = backgroundService,
+        _repository = repository {
+    _initListeners();
+    _fetchInitialLocation();
+  }
 
   // Getters
-  Destination? get destination => _destination ?? _snapshot.destination;
+  JourneyStatus get status => _status;
+  bool get isJourneyActive =>
+      _status == JourneyStatus.active ||
+      _status == JourneyStatus.approaching ||
+      _status == JourneyStatus.alarmActive;
+  bool get isAlarmActive => _status == JourneyStatus.alarmActive;
+  Destination? get destination => _selectedDestination;
   double get radiusMeters => _radiusMeters;
-  TrackingSnapshot get snapshot => _snapshot;
-  LatLng? get liveUserPosition => _liveUserPosition ?? _snapshot.currentPosition;
-  double get currentSpeedKmh => _liveSpeedKmh > 0 ? _liveSpeedKmh : _snapshot.speedKmh;
-  List<Destination> get savedDestinations => _savedDestinations;
-  List<Map<String, dynamic>> get tripHistory => _tripHistory;
-  bool get isTracking => _snapshot.status == TrackingStatus.active;
-  bool get isAlarmRinging => _snapshot.alarmRinging || _snapshot.status == TrackingStatus.triggered;
-  bool get isInitialized => _isInitialized;
+  int get prepWindowMinutes => _prepWindowMinutes;
+  LatLng? get currentPosition => _currentPosition;
+  double get currentAccuracy => _currentAccuracy;
+  double get currentSpeedMps => _currentSpeedMps;
+  double get remainingDistanceMeters => _remainingDistanceMeters;
+  int get estimatedArrivalMinutes => _estimatedArrivalMinutes;
+  List<LatLng> get routePolyline => List.unmodifiable(_routePolyline);
+  bool get isRoadRoute => _isRoadRoute;
+  String? get warningMessage => _warningMessage;
+  DateTime? get journeyStartTime => _journeyStartTime;
 
-  double get distanceMeters {
-    if (_snapshot.status == TrackingStatus.active && _snapshot.distanceMeters.isFinite) {
-      return _snapshot.distanceMeters;
-    }
-    if (_destination != null && liveUserPosition != null) {
-      return _destination!.distanceTo(liveUserPosition!);
-    }
-    return double.infinity;
+  void _initListeners() {
+    _backgroundService.addDataCallback((data) {
+      if (data is Map<String, dynamic>) {
+        if (data['type'] == 'NOTIFICATION_BUTTON') {
+          final action = data['actionId'] as String?;
+          if (action == 'BTN_CANCEL') {
+            stopJourney(outcome: JourneyOutcome.cancelledByUser);
+          }
+        }
+      }
+    });
+
+    _notificationService.actionStream.listen((action) {
+      if (action == 'DISMISS_ALARM') {
+        dismissAlarm();
+      }
+    });
   }
 
-  Future<void> initialize() async {
-    if (_isInitialized) return;
-    _radiusMeters = _settings.defaultRadiusMeters;
-
-    _savedDestinations = await _store.loadSavedDestinations();
-    _tripHistory = await _store.loadHistory();
-    if (_destination == null && _savedDestinations.isNotEmpty) {
-      _destination = _savedDestinations.first;
+  Future<void> _fetchInitialLocation() async {
+    final fix = await _locationService.getCurrentLocation();
+    if (fix != null) {
+      _currentPosition = fix.position;
+      _currentAccuracy = fix.accuracy;
+      _currentSpeedMps = fix.speedMetersPerSec;
+      notifyListeners();
     }
+  }
 
-    // Subscribe to background service updates
-    _bgSub = _bg.onDataReceived().listen(_onBackgroundUpdate);
+  void selectDestination(Destination dest) {
+    _selectedDestination = dest;
+    _radiusMeters = dest.radiusMeters;
+    _status = JourneyStatus.configuring;
+    _warningMessage = null;
 
-    // Start UI-side foreground GPS stream for responsive 60fps map & dashboard
-    _startForegroundGpsStream();
-
-    _isInitialized = true;
+    if (_currentPosition != null) {
+      _calculateInitialRoute();
+    }
     notifyListeners();
   }
 
-  void _onBackgroundUpdate(Map<String, dynamic>? data) {
-    if (data == null) return;
-    _snapshot = TrackingSnapshot.fromMap(data);
+  void setRadius(double meters) {
+    _radiusMeters = meters;
+    if (_selectedDestination != null) {
+      _selectedDestination = _selectedDestination!.copyWith(radiusMeters: meters);
+    }
+    notifyListeners();
+  }
 
-    if (_snapshot.currentPosition != null) {
-      _liveUserPosition = _snapshot.currentPosition;
-    }
-    if (_snapshot.speedKmh > 0) {
-      _liveSpeedKmh = _snapshot.speedKmh;
-    }
+  void setPrepWindow(int minutes) {
+    _prepWindowMinutes = minutes;
+    notifyListeners();
+  }
 
-    if (_snapshot.isTriggered && !_snapshot.alarmRinging) {
-      // Record trigger in history
-      _store.recordTriggerIfNew({
-        'lastTriggeredAt': DateTime.now().toIso8601String(),
-        'destinationName': _destination?.name ?? 'Destination',
-        'triggerReason': _snapshot.triggerReason,
-        'triggerDistanceMeters': _snapshot.distanceMeters,
-      });
-      _store.loadHistory().then((h) {
-        _tripHistory = h;
-        notifyListeners();
-      });
-    }
+  Future<void> _calculateInitialRoute() async {
+    if (_currentPosition == null || _selectedDestination == null) return;
+
+    final destLatLng = _selectedDestination!.latLng;
+    final directDist =
+        GeoUtils.calculateDistanceMeters(_currentPosition!, destLatLng);
+    _remainingDistanceMeters = directDist;
+    _initialDistanceMeters = directDist;
+
+    final routeResult =
+        await _routingService.getRoute(_currentPosition!, destLatLng);
+    _routePolyline = routeResult.polylinePoints;
+    _isRoadRoute = routeResult.isRoadRoute;
+    _remainingDistanceMeters = routeResult.distanceMeters;
+    _estimatedArrivalMinutes = routeResult.durationMinutes;
 
     notifyListeners();
   }
 
-  void _startForegroundGpsStream() async {
-    final hasPermission = await Geolocator.checkPermission();
-    if (hasPermission == LocationPermission.denied ||
-        hasPermission == LocationPermission.deniedForever) {
-      return;
+  /// Starts live journey monitoring with Foreground Service & GPS tracking.
+  Future<bool> startJourney({AppSettings? settings}) async {
+    if (_selectedDestination == null) return false;
+
+    // 1. Permission verification
+    final permResult = await PermissionUtils.checkAllPermissions();
+    if (!permResult.isReadyForMonitoring) {
+      _warningMessage = permResult.errorMessage ?? 'Required permissions not granted.';
+      notifyListeners();
+      return false;
     }
 
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 5,
+    _status = JourneyStatus.active;
+    _hasTriggeredAlarmThisJourney = false;
+    _journeyStartTime = DateTime.now();
+    _warningMessage = null;
+
+    // Check if starting inside or dangerously close to alert radius
+    if (_currentPosition != null) {
+      final double dist = GeoUtils.calculateDistanceMeters(
+          _currentPosition!, _selectedDestination!.latLng);
+      if (dist <= _radiusMeters) {
+        _warningMessage =
+            'Notice: You are currently already within the ${_radiusMeters.round()}m alert radius!';
+      }
+    }
+
+    // 2. Start Foreground Service for uninterrupted background tracking
+    await _backgroundService.startForegroundMonitoring(
+      destinationName: _selectedDestination!.name,
+      destinationLat: _selectedDestination!.latitude,
+      destinationLng: _selectedDestination!.longitude,
+      radiusMeters: _radiusMeters,
+      prepWindowMinutes: _prepWindowMinutes,
+      initialStatusText:
+          'Tracking to ${_selectedDestination!.name} (${Formatters.formatDistance(_remainingDistanceMeters)})',
     );
 
-    _positionSub?.cancel();
-    _positionSub = Geolocator.getPositionStream(locationSettings: locationSettings)
-        .listen((position) {
-      _liveUserPosition = LatLng(position.latitude, position.longitude);
-      _liveSpeedKmh = (position.speed * 3.6).clamp(0.0, 350.0);
+    // 3. Start Location Service Stream
+    _locationService.startTracking(
+      distanceFilterMeters: _getAdaptiveDistanceFilter(_remainingDistanceMeters),
+    );
 
-      // Recalculate distance if tracking or destination selected
-      if (_destination != null && !_snapshot.status.isActive) {
-        final dist = _destination!.distanceTo(_liveUserPosition!);
-        _snapshot = _snapshot.copyWith(
-          currentPosition: _liveUserPosition,
-          speedKmh: _liveSpeedKmh,
-          distanceMeters: dist,
-        );
-      }
-      notifyListeners();
-    }, onError: (_) {});
-  }
+    _locationSubscription?.cancel();
+    _locationSubscription =
+        _locationService.locationStream.listen(_onLocationUpdate);
 
-  void setDestination(Destination dest) {
-    _destination = dest;
-    if (_liveUserPosition != null) {
-      final dist = dest.distanceTo(_liveUserPosition!);
-      _snapshot = _snapshot.copyWith(
-        destination: dest,
-        distanceMeters: dist,
-      );
-    } else {
-      _snapshot = _snapshot.copyWith(destination: dest);
-    }
+    // 4. Start periodic background notification updater (every ~45s)
+    _notificationUpdateTimer?.cancel();
+    _notificationUpdateTimer =
+        Timer.periodic(const Duration(seconds: 45), (_) => _refreshNotification());
+
+    // Save active state to storage for recovery
+    await _saveActiveState();
     notifyListeners();
-  }
-
-  void setRadius(double radiusMeters) {
-    _radiusMeters = radiusMeters;
-    _snapshot = _snapshot.copyWith(radiusMeters: radiusMeters);
-    notifyListeners();
-  }
-
-  Future<bool> requestPermissions() async {
-    final locStatus = await Permission.locationWhenInUse.request();
-    if (!locStatus.isGranted) return false;
-
-    // Notification permission for Android 13+
-    await Permission.notification.request();
     return true;
   }
 
-  Future<void> startJourney() async {
-    if (_destination == null) return;
-    final granted = await requestPermissions();
-    if (!granted) {
-      _snapshot = _snapshot.copyWith(
-        status: TrackingStatus.error,
-        lastError: 'Location permission is required for transit alarm.',
-      );
-      notifyListeners();
-      return;
+  void _onLocationUpdate(LocationReading reading) {
+    if (!isJourneyActive) return;
+
+    _currentPosition = reading.position;
+    _currentAccuracy = reading.accuracy;
+    _currentSpeedMps = reading.speedMetersPerSec;
+
+    if (_selectedDestination == null) return;
+
+    final destLatLng = _selectedDestination!.latLng;
+    final dist = GeoUtils.calculateDistanceMeters(_currentPosition!, destLatLng);
+    _remainingDistanceMeters = dist;
+
+    // Update ETA
+    _estimatedArrivalMinutes = GeoUtils.estimateEtaMinutes(
+      distanceMeters: dist,
+      currentSpeedMetersPerSec: _currentSpeedMps,
+    );
+
+    // Adaptive polling: adjust GPS distance filter based on proximity
+    final newFilter = _getAdaptiveDistanceFilter(dist);
+    _locationService.updateDistanceFilter(newFilter);
+
+    // Check approaching state
+    if (dist <= _radiusMeters * 1.5 && _status == JourneyStatus.active) {
+      _status = JourneyStatus.approaching;
     }
 
-    await _store.saveDestination(_destination!);
-    _savedDestinations = await _store.loadSavedDestinations();
+    // Check Trigger Condition
+    if (!_hasTriggeredAlarmThisJourney) {
+      final bool shouldTrigger = GeoUtils.shouldTriggerAlarm(
+        distanceMeters: dist,
+        radiusMeters: _radiusMeters,
+        etaMinutes: _estimatedArrivalMinutes,
+        prepWindowMinutes: _prepWindowMinutes,
+      );
 
-    _snapshot = _snapshot.copyWith(
-      status: TrackingStatus.active,
-      destination: _destination,
-      radiusMeters: _radiusMeters,
-      alarmRinging: false,
-      lastError: '',
-    );
-    notifyListeners();
+      if (shouldTrigger) {
+        _triggerAlarm();
+      }
+    }
 
-    await _bg.startTracking(
-      destination: _destination!,
-      radiusMeters: _radiusMeters,
-      alarmSound: _settings.alarmSound,
-      vibrate: _settings.vibrate,
-      overrideSilent: _settings.overrideSilentMode,
-    );
-  }
-
-  Future<void> stopJourney() async {
-    await _bg.stopTracking();
-    _snapshot = _snapshot.copyWith(
-      status: TrackingStatus.idle,
-      alarmRinging: false,
-    );
     notifyListeners();
   }
 
+  int _getAdaptiveDistanceFilter(double distanceMeters) {
+    if (distanceMeters > AppConstants.farDistanceThresholdMeters) {
+      return 100; // Far: 100m filter
+    } else if (distanceMeters > AppConstants.mediumDistanceThresholdMeters) {
+      return 50; // Medium: 50m filter
+    } else if (distanceMeters > AppConstants.closeDistanceThresholdMeters) {
+      return 15; // Close: 15m filter
+    } else {
+      return 5; // Very close: 5m filter for maximum precision
+    }
+  }
+
+  Future<void> _refreshNotification() async {
+    if (!isJourneyActive || _selectedDestination == null) return;
+
+    final distStr = Formatters.formatDistance(_remainingDistanceMeters);
+    final etaStr = 'ETA: ~${_estimatedArrivalMinutes}m';
+    final statusStr = _status == JourneyStatus.alarmActive
+        ? '🚨 ALARM TRIGGERED'
+        : _status == JourneyStatus.approaching
+            ? 'Approaching Alert Zone'
+            : 'Monitoring Active';
+
+    await _backgroundService.updateNotification(
+      destinationName: _selectedDestination!.name,
+      distanceRemaining: distStr,
+      etaText: etaStr,
+      monitoringStatus: statusStr,
+    );
+  }
+
+  /// Triggers the persistent, loud alarm and emergency notification.
+  Future<void> _triggerAlarm() async {
+    if (_hasTriggeredAlarmThisJourney) return;
+    _hasTriggeredAlarmThisJourney = true;
+    _status = JourneyStatus.alarmActive;
+
+    final appSettings = await _repository.loadSettings();
+
+    // 1. Start loud looping audio and vibration
+    await _alarmService.startAlarm(
+      soundId: appSettings.alarmSoundId,
+      vibrationEnabled: appSettings.vibrationEnabled,
+    );
+
+    // 2. Display urgent full screen alarm notification
+    final distStr = Formatters.formatDistance(_remainingDistanceMeters);
+    await _notificationService.showAlarmNotification(
+      destinationName: _selectedDestination?.name ?? 'Destination',
+      distanceFormatted: distStr,
+    );
+
+    // 3. Update background ongoing service notification
+    await _refreshNotification();
+
+    notifyListeners();
+  }
+
+  /// Dismisses active alarm and records journey completion.
   Future<void> dismissAlarm() async {
-    await _bg.dismissAlarm();
-    _snapshot = _snapshot.copyWith(
-      status: TrackingStatus.idle,
-      alarmRinging: false,
+    await _alarmService.stopAlarm();
+    await _notificationService.cancelAlarmNotification();
+
+    _status = JourneyStatus.dismissed;
+    await _finishJourney(outcome: JourneyOutcome.alarmTriggeredAndDismissed);
+    notifyListeners();
+  }
+
+  /// Snoozes alarm for [minutes] then triggers again.
+  Future<void> snoozeAlarm(int minutes) async {
+    await _alarmService.stopAlarm();
+    await _notificationService.cancelAlarmNotification();
+
+    _status = JourneyStatus.approaching;
+    _hasTriggeredAlarmThisJourney = false; // Allow trigger again after snooze
+    notifyListeners();
+
+    Timer(Duration(minutes: minutes), () {
+      if (isJourneyActive && !_hasTriggeredAlarmThisJourney) {
+        _triggerAlarm();
+      }
+    });
+  }
+
+  /// Stops and completes journey cleanly.
+  Future<void> stopJourney({
+    JourneyOutcome outcome = JourneyOutcome.completedNormally,
+  }) async {
+    await _alarmService.stopAlarm();
+    await _notificationService.cancelAlarmNotification();
+    _simulationTimer?.cancel();
+
+    _status = outcome == JourneyOutcome.cancelledByUser
+        ? JourneyStatus.cancelled
+        : JourneyStatus.idle;
+
+    await _finishJourney(outcome: outcome);
+    notifyListeners();
+  }
+
+  Future<void> _finishJourney({required JourneyOutcome outcome}) async {
+    _locationSubscription?.cancel();
+    _notificationUpdateTimer?.cancel();
+    _locationService.stopTracking();
+    await _backgroundService.stopForegroundMonitoring();
+
+    if (_selectedDestination != null) {
+      final journey = Journey(
+        destination: _selectedDestination!,
+        startTime: _journeyStartTime ?? DateTime.now(),
+        endTime: DateTime.now(),
+        startLatitude: _currentPosition?.latitude ?? 0.0,
+        startLongitude: _currentPosition?.longitude ?? 0.0,
+        initialDistanceMeters: _initialDistanceMeters,
+        finalDistanceMeters: _remainingDistanceMeters,
+        alertRadiusMeters: _radiusMeters,
+        prepWindowMinutes: _prepWindowMinutes,
+        outcome: outcome,
+        alarmTriggered: _hasTriggeredAlarmThisJourney,
+        alarmTriggeredAt: _hasTriggeredAlarmThisJourney ? DateTime.now() : null,
+      );
+
+      await _repository.addJourneyToHistory(journey);
+    }
+
+    await _repository.saveActiveJourney(null);
+  }
+
+  Future<void> _saveActiveState() async {
+    if (_selectedDestination == null) return;
+    final active = Journey(
+      destination: _selectedDestination!,
+      startTime: _journeyStartTime ?? DateTime.now(),
+      startLatitude: _currentPosition?.latitude ?? 0.0,
+      startLongitude: _currentPosition?.longitude ?? 0.0,
+      initialDistanceMeters: _initialDistanceMeters,
+      alertRadiusMeters: _radiusMeters,
+      prepWindowMinutes: _prepWindowMinutes,
+      outcome: JourneyOutcome.inProgress,
     );
+    await _repository.saveActiveJourney(active);
+  }
+
+  /// Interactive Simulation:
+  /// Gradually teleports/interpolates user position closer to the destination
+  /// to demonstrate real arrival detection and trigger the alarm live!
+  void simulateApproachStep() {
+    if (_selectedDestination == null || _currentPosition == null) return;
+
+    final dest = _selectedDestination!.latLng;
+    // Step 70% closer to the destination inside or at the radius boundary
+    final currentLat = _currentPosition!.latitude;
+    final currentLng = _currentPosition!.longitude;
+
+    // Position just inside the configured radius
+    final targetLat = currentLat + (dest.latitude - currentLat) * 0.85;
+    final targetLng = currentLng + (dest.longitude - currentLng) * 0.85;
+
+    final simulatedPosition = LatLng(targetLat, targetLng);
+    _onLocationUpdate(
+      LocationReading(
+        position: simulatedPosition,
+        accuracy: 10.0,
+        speedMetersPerSec: 15.0, // 54 km/h transit speed
+        heading: GeoUtils.calculateBearing(simulatedPosition, dest),
+        timestamp: DateTime.now(),
+        isAccurate: true,
+      ),
+    );
+  }
+
+  /// Triggers alarm immediately for testing / preview.
+  void testAlarmImmediately() {
+    _triggerAlarm();
+  }
+
+  void resetToIdle() {
+    _status = JourneyStatus.idle;
+    _selectedDestination = null;
+    _hasTriggeredAlarmThisJourney = false;
+    _warningMessage = null;
     notifyListeners();
   }
 
   @override
   void dispose() {
-    _positionSub?.cancel();
-    _bgSub?.cancel();
+    _locationSubscription?.cancel();
+    _notificationUpdateTimer?.cancel();
+    _simulationTimer?.cancel();
     super.dispose();
   }
 }
