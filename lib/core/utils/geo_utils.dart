@@ -34,6 +34,13 @@ class GeoUtils {
     return (degrees + 360.0) % 360.0;
   }
 
+  /// Converts bearing degrees (0..360) into a friendly compass cardinal direction (e.g. N, NE, E, SE, S, SW, W, NW).
+  static String getCardinalDirection(double degrees) {
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    final index = ((degrees + 22.5) % 360 / 45).floor();
+    return directions[index % directions.length];
+  }
+
   /// Evaluates whether a new location reading is physically plausible or an inaccurate GPS jump.
   static bool isValidLocationUpdate({
     required LatLng newPosition,

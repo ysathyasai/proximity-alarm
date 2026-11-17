@@ -206,6 +206,18 @@ void main() {
       );
       expect(notYet, isFalse);
     });
+
+    test('getCardinalDirection converts bearing degrees accurately to compass points', () {
+      expect(GeoUtils.getCardinalDirection(0), equals('N'));
+      expect(GeoUtils.getCardinalDirection(45), equals('NE'));
+      expect(GeoUtils.getCardinalDirection(90), equals('E'));
+      expect(GeoUtils.getCardinalDirection(135), equals('SE'));
+      expect(GeoUtils.getCardinalDirection(180), equals('S'));
+      expect(GeoUtils.getCardinalDirection(225), equals('SW'));
+      expect(GeoUtils.getCardinalDirection(270), equals('W'));
+      expect(GeoUtils.getCardinalDirection(315), equals('NW'));
+      expect(GeoUtils.getCardinalDirection(355), equals('N'));
+    });
   });
 
   group('Formatters Unit Tests', () {

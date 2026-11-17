@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/geo_utils.dart';
 import '../../data/models/journey.dart';
 import '../../providers/journey_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -158,6 +159,8 @@ class ActiveJourneyScreen extends StatelessWidget {
                   showConnectingLine: settings.showConnectingLine,
                   showRoutePolyline: settings.showRoutePolyline,
                   distanceUnit: unit,
+                  userHeading: jp.currentHeading,
+                  userSpeed: jp.currentSpeedMps,
                 ),
               ),
 
@@ -223,6 +226,40 @@ class ActiveJourneyScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 12),
+
+                        // Animated Journey Progress
+                        if (jp.journeyProgressPercent > 0) ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Progress: ${(jp.journeyProgressPercent * 100).round()}%',
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                              ),
+                              Text(
+                                'Direction: ${GeoUtils.getCardinalDirection(jp.destinationBearing)} (${jp.destinationBearing.round()}°)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: jp.journeyProgressPercent,
+                              minHeight: 6,
+                              backgroundColor: (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                isApproaching ? const Color(0xFFF59E0B) : theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
 
                         // Metrics Grid
                         Row(

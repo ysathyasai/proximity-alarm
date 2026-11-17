@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../providers/journey_provider.dart';
@@ -45,6 +46,7 @@ class _AlarmScreenState extends State<AlarmScreen>
   Future<void> _handleDismiss(JourneyProvider journey) async {
     if (_isDismissed) return;
     _isDismissed = true;
+    HapticFeedback.heavyImpact();
     await journey.dismissAlarm();
     if (mounted) {
       Navigator.of(context).pop();
@@ -359,6 +361,7 @@ class _AlarmScreenState extends State<AlarmScreen>
                       ),
                     ),
                     onPressed: () async {
+                      HapticFeedback.mediumImpact();
                       await journey.snoozeAlarm(snoozeMinutes);
                       if (context.mounted) {
                         Navigator.of(context).pop();

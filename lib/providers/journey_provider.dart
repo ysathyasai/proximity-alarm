@@ -48,6 +48,7 @@ class JourneyProvider with ChangeNotifier {
   LatLng? _currentPosition;
   double _currentAccuracy = 0.0;
   double _currentSpeedMps = 0.0;
+  double _currentHeading = 0.0;
   double _remainingDistanceMeters = 0.0;
   int _estimatedArrivalMinutes = 0;
 
@@ -101,12 +102,25 @@ class JourneyProvider with ChangeNotifier {
   LatLng? get currentPosition => _currentPosition;
   double get currentAccuracy => _currentAccuracy;
   double get currentSpeedMps => _currentSpeedMps;
+  double get currentHeading => _currentHeading;
   double get remainingDistanceMeters => _remainingDistanceMeters;
   int get estimatedArrivalMinutes => _estimatedArrivalMinutes;
   List<LatLng> get routePolyline => List.unmodifiable(_routePolyline);
   bool get isRoadRoute => _isRoadRoute;
   String? get warningMessage => _warningMessage;
   DateTime? get journeyStartTime => _journeyStartTime;
+
+  double get destinationBearing =>
+      (_currentPosition != null && _selectedDestination != null)
+          ? GeoUtils.calculateBearing(
+              _currentPosition!, _selectedDestination!.latLng)
+          : 0.0;
+
+  double get journeyProgressPercent {
+    if (_initialDistanceMeters <= 0 || _remainingDistanceMeters <= 0) return 0.0;
+    final progress = 1.0 - (_remainingDistanceMeters / _initialDistanceMeters);
+    return progress.clamp(0.0, 1.0);
+  }
 
   void _initListeners() {
     _backgroundService.addDataCallback((data) {
@@ -285,6 +299,7 @@ class JourneyProvider with ChangeNotifier {
     _currentPosition = reading.position;
     _currentAccuracy = reading.accuracy;
     _currentSpeedMps = reading.speedMetersPerSec;
+    _currentHeading = reading.heading;
 
     if (_selectedDestination == null) return;
 

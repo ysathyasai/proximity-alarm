@@ -20,6 +20,8 @@ class ProximityMap extends StatefulWidget {
   final bool showConnectingLine;
   final bool showRoutePolyline;
   final DistanceUnit distanceUnit;
+  final double? userHeading;
+  final double? userSpeed;
 
   const ProximityMap({
     super.key,
@@ -37,6 +39,8 @@ class ProximityMap extends StatefulWidget {
     this.showConnectingLine = true,
     this.showRoutePolyline = true,
     this.distanceUnit = DistanceUnit.metric,
+    this.userHeading,
+    this.userSpeed,
   });
 
   @override
@@ -172,8 +176,8 @@ class _ProximityMapState extends State<ProximityMap> {
                     if (widget.userPosition != null)
                       Marker(
                         point: widget.userPosition!,
-                        width: 32,
-                        height: 32,
+                        width: 36,
+                        height: 36,
                         child: Container(
                           decoration: BoxDecoration(
                             color: const Color(0xFF2563EB),
@@ -181,12 +185,24 @@ class _ProximityMapState extends State<ProximityMap> {
                             border: Border.all(color: Colors.white, width: 3.5),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.3),
+                                color: Colors.black.withValues(alpha: 0.35),
                                 blurRadius: 6,
                                 spreadRadius: 1,
                               ),
                             ],
                           ),
+                          child: (widget.userSpeed != null &&
+                                  widget.userSpeed! > 1.0 &&
+                                  widget.userHeading != null)
+                              ? Transform.rotate(
+                                  angle: widget.userHeading! * 3.141592653589793 / 180,
+                                  child: const Icon(
+                                    Icons.navigation_rounded,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : null,
                         ),
                       ),
                     if (widget.destinationPosition != null)

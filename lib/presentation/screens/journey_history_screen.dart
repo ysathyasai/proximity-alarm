@@ -15,6 +15,13 @@ class JourneyHistoryScreen extends StatelessWidget {
     final historyProvider = context.watch<JourneyHistoryProvider>();
     final history = historyProvider.history;
     final settings = context.watch<SettingsProvider>();
+    final unit = settings.distanceUnit;
+
+    // Analytics summary
+    final totalTrips = history.length;
+    final totalAlarmsWoken = history.where((j) => j.alarmTriggered).length;
+    final totalMeters = history.fold<double>(0.0, (acc, j) => acc + j.initialDistanceMeters);
+    final onTimeRate = totalTrips > 0 ? ((totalAlarmsWoken / totalTrips) * 100).round() : 100;
 
     return Scaffold(
       appBar: AppBar(
@@ -80,12 +87,93 @@ class JourneyHistoryScreen extends StatelessWidget {
                 ],
               ),
             )
-          : ListView.separated(
+          : ListView.builder(
               padding: const EdgeInsets.all(20),
-              itemCount: history.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemCount: history.length + 1, // +1 for the top analytics dashboard card
               itemBuilder: (context, index) {
-                final journey = history[index];
+                // Item 0: Analytics Dashboard Card
+                if (index == 0) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isDark
+                            ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+                            : [Colors.white, const Color(0xFFF8FAFC)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(Icons.analytics_rounded,
+                                  color: theme.colorScheme.primary, size: 20),
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Commuter Performance',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildSummaryItem(
+                              title: 'Total Trips',
+                              value: totalTrips.toString(),
+                              color: theme.colorScheme.primary,
+                            ),
+                            _buildSummaryItem(
+                              title: 'Monitored',
+                              value: Formatters.formatDistance(totalMeters, unit),
+                              color: const Color(0xFF10B981),
+                            ),
+                            _buildSummaryItem(
+                              title: 'Woke Up',
+                              value: totalAlarmsWoken.toString(),
+                              color: const Color(0xFFF59E0B),
+                            ),
+                            _buildSummaryItem(
+                              title: 'Wake Rate',
+                              value: '$onTimeRate%',
+                              color: const Color(0xFF8B5CF6),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final journey = history[index - 1];
 
                 Color outcomeColor = const Color(0xFF10B981);
                 String outcomeLabel = 'Alarm Triggered & Dismissed';
@@ -101,96 +189,127 @@ class JourneyHistoryScreen extends StatelessWidget {
                   outcomeIcon = Icons.check_circle_outline_rounded;
                 }
 
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: outcomeColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: outcomeColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(outcomeIcon,
+                                    color: outcomeColor, size: 22),
                               ),
-                              child: Icon(outcomeIcon,
-                                  color: outcomeColor, size: 22),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    journey.destination.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 15,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      journey.destination.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 15,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    Formatters.formatDateTime(journey.startTime),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: isDark
-                                          ? const Color(0xFF94A3B8)
-                                          : const Color(0xFF64748B),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      Formatters.formatDateTime(journey.startTime),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark
+                                            ? const Color(0xFF94A3B8)
+                                            : const Color(0xFF64748B),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Divider(
-                          height: 1,
-                          color: isDark
-                              ? const Color(0xFF334155)
-                              : const Color(0xFFF1F5F9),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Duration: ${Formatters.formatDurationMinutes(journey.durationMinutes)} • ${Formatters.formatDistance(journey.initialDistanceMeters, settings.distanceUnit)}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? const Color(0xFF94A3B8)
-                                    : const Color(0xFF475569),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: outcomeColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                outcomeLabel,
-                                style: TextStyle(
-                                  color: outcomeColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
+                                  ],
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Divider(
+                            height: 1,
+                            color: isDark
+                                ? const Color(0xFF334155)
+                                : const Color(0xFFF1F5F9),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Duration: ${Formatters.formatDurationMinutes(journey.durationMinutes)} • ${Formatters.formatDistance(journey.initialDistanceMeters, unit)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF475569),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: outcomeColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  outcomeLabel,
+                                  style: TextStyle(
+                                    color: outcomeColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
               },
             ),
+    );
+  }
+
+  Widget _buildSummaryItem({
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF64748B),
+          ),
+        ),
+      ],
     );
   }
 }

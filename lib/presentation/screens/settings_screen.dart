@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../providers/journey_history_provider.dart';
@@ -167,6 +168,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                     selected: {settings.themeMode},
                     onSelectionChanged: (newSelection) {
+                      HapticFeedback.selectionClick();
                       settingsProvider.updateThemeMode(newSelection.first);
                     },
                   ),
@@ -199,7 +201,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       final name = AppConstants.accentColorNames[key] ?? key;
 
                       return InkWell(
-                        onTap: () => settingsProvider.updateAccentColor(key),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          settingsProvider.updateAccentColor(key);
+                        },
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
                           padding: const EdgeInsets.symmetric(

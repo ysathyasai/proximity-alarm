@@ -40,9 +40,11 @@ class LocationService {
   final _locationController = StreamController<LocationReading>.broadcast();
 
   LocationReading? _lastValidReading;
+  int _currentDistanceFilter = 15;
 
   Stream<LocationReading> get locationStream => _locationController.stream;
   LocationReading? get lastValidReading => _lastValidReading;
+  int get currentDistanceFilter => _currentDistanceFilter;
 
   /// Gets immediate current location fix.
   Future<LocationReading?> getCurrentLocation() async {
@@ -76,11 +78,20 @@ class LocationService {
 
   /// Starts listening to location updates with adaptive distance filter.
   void startTracking({int distanceFilterMeters = 15}) {
+    _currentDistanceFilter = distanceFilterMeters;
     _positionSubscription?.cancel();
 
-    final locationSettings = LocationSettings(
+    // Use Android-optimized settings with appropriate interval duration
+    final locationSettings = AndroidSettings(
       accuracy: LocationAccuracy.bestForNavigation,
       distanceFilter: distanceFilterMeters,
+      intervalDuration: Duration(
+        seconds: distanceFilterMeters >= 100
+            ? 15
+            : distanceFilterMeters >= 35
+                ? 8
+                : 3,
+      ),
     );
 
     _positionSubscription = Geolocator.getPositionStream(
@@ -105,14 +116,15 @@ class LocationService {
         }
       },
       onError: (error) {
-        // Log or forward error
+        // Stream error handling
       },
     );
   }
 
-  /// Updates distance filter dynamically for battery efficiency (adaptive polling).
+  /// Updates distance filter dynamically only when the threshold has actually changed.
+  /// Prevents restarting the native GPS position stream needlessly on every location tick.
   void updateDistanceFilter(int meters) {
-    if (_positionSubscription != null) {
+    if (_currentDistanceFilter != meters && _positionSubscription != null) {
       startTracking(distanceFilterMeters: meters);
     }
   }
@@ -127,4 +139,3 @@ class LocationService {
     _locationController.close();
   }
 }
-

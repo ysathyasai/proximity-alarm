@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/formatters.dart';
@@ -157,14 +158,14 @@ class HomeMainView extends StatelessWidget {
                   gradient: LinearGradient(
                     colors: journey.isAlarmActive
                         ? [const Color(0xFFEF4444), const Color(0xFFB91C1C)]
-                        : [const Color(0xFF2563EB), const Color(0xFF1D4ED8)],
+                        : [theme.colorScheme.primary, theme.colorScheme.primary.withValues(alpha: 0.85)],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
                       color: (journey.isAlarmActive
                               ? const Color(0xFFEF4444)
-                              : const Color(0xFF2563EB))
+                              : theme.colorScheme.primary)
                           .withValues(alpha: 0.35),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
@@ -294,6 +295,7 @@ class HomeMainView extends StatelessWidget {
                               : const Color(0xFFCBD5E1)),
                     ),
                     onPressed: () {
+                      HapticFeedback.selectionClick();
                       journey.selectDestination(item);
                     },
                   );
@@ -611,7 +613,7 @@ class HomeMainView extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: journey.destination == null
                     ? (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1))
-                    : const Color(0xFF2563EB),
+                    : theme.colorScheme.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
@@ -637,6 +639,7 @@ class HomeMainView extends StatelessWidget {
                       );
                     }
                   : () async {
+                      HapticFeedback.heavyImpact();
                       final started = await journey.startJourney(
                         settings: settings.settings,
                       );
