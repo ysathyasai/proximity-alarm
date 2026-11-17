@@ -15,6 +15,22 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License" /></a>
 </p>
 
+### 💡 Where It Is Used — The Commuter Journey Flow
+
+```text
+┌─────────────────┐      ┌──────────────────────┐      ┌───────────────────────────┐      ┌─────────────────────────┐
+│ 1. SET LOCATION │ ──►  │ 2. SLEEP (OPTIONAL)  │ ──►  │ 3. RUNS EFFICIENTLY IN BG │ ──►  │ 4. RINGS WHEN NEARBY    │
+│ Search stop/pin │      │ Rest or read freely  │      │ Low-power adaptive GPS    │      │ Alert radius or ETA hit │
+└─────────────────┘      └──────────────────────┘      └───────────────────────────┘      └─────────────────────────┘
+```
+
+> **"You set the location ➔ You sleep (Optional) ➔ It will run efficiently in the bg, according to the location set ➔ It will ring when you're nearby accordingly to the set location and parameters such as time and the location distance."**
+
+#### 🚌 Common Everyday Transit Scenarios:
+- **Daily Bus & Metro Commutes:** Avoid overshooting crowded transfer stations or depot stops on daily work and university commutes.
+- **Overnight Sleeper Trains:** Nap peacefully on overnight berths without setting flawed fixed-time alarms that ring miles early during track delays or fail if the train runs early.
+- **Late-Night Rideshares & Shuttles:** Rest your eyes after long flights or late-night shifts; your phone wakes you safely before arriving home.
+
 ---
 
 ## 📋 Table of Contents

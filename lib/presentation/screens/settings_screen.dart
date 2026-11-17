@@ -10,6 +10,7 @@ import '../../services/alarm_service.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/battery_guidance_sheet.dart';
 import '../widgets/radius_selector.dart';
+import '../widgets/use_case_guide_sheet.dart';
 import 'alarm_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -921,6 +922,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: isPitchBlack ? const Color(0xFF0D0D0D) : null,
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.explore_rounded, color: Color(0xFF2563EB)),
+                  title: const Text('Where & How It Works',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  subtitle: const Text(
+                    'The 4-step commuter flow & real-world transit scenarios',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                  onTap: () => UseCaseGuideSheet.show(context),
+                ),
+                Divider(
+                  height: 1,
+                  color: isDark ? const Color(0xFF27272A) : const Color(0xFFE2E8F0),
+                ),
                 ListTile(
                   leading: const Icon(Icons.battery_saver_rounded, color: Color(0xFF10B981)),
                   title: const Text('Android OEM Battery Guidance',

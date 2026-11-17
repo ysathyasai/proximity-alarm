@@ -11,6 +11,7 @@ import '../widgets/app_logo.dart';
 import '../widgets/battery_guidance_sheet.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/radius_selector.dart';
+import '../widgets/use_case_guide_sheet.dart';
 import 'active_journey_screen.dart';
 import 'alarm_screen.dart';
 import 'destination_picker_screen.dart';
@@ -109,6 +110,11 @@ class HomeMainView extends StatelessWidget {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Where & How It Works',
+            icon: const Icon(Icons.help_outline_rounded),
+            onPressed: () => UseCaseGuideSheet.show(context),
+          ),
           IconButton(
             tooltip: 'Battery Optimization Guidance',
             icon: const Icon(Icons.battery_saver_rounded),
@@ -217,6 +223,99 @@ class HomeMainView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+          ],
+
+          // Commuter Flow Quick Overview
+          if (!journey.isJourneyActive) ...[
+            InkWell(
+              onTap: () => UseCaseGuideSheet.show(context),
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: isPitchBlack
+                      ? const Color(0xFF0C0C0C)
+                      : (isDark
+                          ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                          : theme.colorScheme.primary.withValues(alpha: 0.08)),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isPitchBlack
+                        ? const Color(0xFF222222)
+                        : (isDark
+                            ? theme.colorScheme.primary.withValues(alpha: 0.25)
+                            : theme.colorScheme.primary.withValues(alpha: 0.2)),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        Icons.route_rounded,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'How It Works',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '4 Steps',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Set Location ➔ Sleep (Optional) ➔ Efficient BG GPS ➔ Rings Nearby',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
           ],
 
           // 2. Search Bar
