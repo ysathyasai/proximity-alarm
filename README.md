@@ -24,15 +24,16 @@ Proximity Alarm is an intelligent, location-based arrival alarm designed specifi
      - 1 – 3 km: approaching mode (15m filter)
      - < 1 km: arrival precision mode (5m filter)
 
-3. **Loud, Continuous Alarm Engine**:
-   - Uses Android's native `STREAM_ALARM` (`UsageType.alarm`), which sounds even when device ringers are set to Silent or Vibrate.
-   - Unstoppable looping alarm playback until explicitly dismissed.
+3. **Loud, Continuous Alarm Engine & Custom Audio**:
+   - Uses Android's native `STREAM_ALARM` (`UsageType.alarm`) with `gainTransientExclusive` focus lock to mute competing apps (Spotify, podcasts, YouTube).
+   - **Custom Audio Support**: Pick your own `.mp3`, `.wav`, `.m4a`, or `.ogg` files directly from phone storage.
    - Four high-fidelity synthesized alarm sound profiles bundled in-app:
      - *Radar Pulse (Urgent)*
      - *Transit Arrival Chime*
      - *Emergency Siren*
      - *Piercing Bell*
-   - Looping haptic vibration pattern with full hardware vibrator control.
+   - Samsung One UI Clock style alarm ringing screen with live digital time, animated radial sonar waves, and tactile Dismiss & Snooze controls.
+   - Smooth volume ramp-up escalation (Instant, 5s, 10s, 15s, 20s) and volume slider.
    - Full-Screen Intent notification pops up the Alarm screen over the lock screen.
 
 4. **GPS Accuracy Filtering & Glitch Rejection**:
@@ -49,8 +50,10 @@ Proximity Alarm is an intelligent, location-based arrival alarm designed specifi
 6. **Interactive Demo Simulation**:
    - Built-in "Simulate Approach" button on the Active Journey screen allows instant testing and verification of the arrival alert without boarding a physical bus.
 
-7. **Material 3 UI & Architecture**:
-   - Cohesive light and dark theme (defaults to system setting).
+7. **Material 3 & Samsung One UI Polish**:
+   - Themes: System Auto, Light, Dark, and **Pitch Black AMOLED (`#000000`)** for zero-glare, maximum battery saving on OLED screens.
+   - 6 cohesive accent colors: Sapphire Blue, Emerald Green, Sunset Amber, Electric Violet, Crimson Red, Ocean Cyan.
+   - Custom app launcher icon and logo generated across all Android mipmap densities.
    - 7 complete screens:
      - **Home**: Quick search, mini map preview, saved places carousel, radius & prep window config, Start Journey CTA.
      - **Destination Picker**: Interactive map, tap-to-pin with reverse geocoding, radius circle preview, location search.
