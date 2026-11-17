@@ -7,6 +7,7 @@ import '../../providers/journey_provider.dart';
 import '../../providers/saved_destinations_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/map_launcher_service.dart';
+import '../widgets/app_logo.dart';
 import '../widgets/battery_guidance_sheet.dart';
 import '../widgets/destination_search_bar.dart';
 import '../widgets/radius_selector.dart';
@@ -98,18 +99,7 @@ class HomeMainView extends StatelessWidget {
       appBar: AppBar(
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.radar_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
+            const AppLogo(size: 34),
             const SizedBox(width: 12),
             const Text(
               AppConstants.appName,

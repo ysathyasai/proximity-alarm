@@ -11,6 +11,13 @@ enum DistanceUnit {
   imperial, // mi, ft, mph
 }
 
+enum AppThemeStyle {
+  system,
+  light,
+  dark,
+  pitchBlack, // Pure AMOLED #000000
+}
+
 enum MonitoringProfile {
   balanced, // 100m/50m/15m/5m adaptive GPS (Best blend of battery & accuracy)
   responsive, // 50m/25m/10m/3m high-frequency GPS (Express trains & highway transit)
@@ -40,8 +47,10 @@ class AppConstants {
 
   // Standard Presets
   static const List<double> radiusPresets = [500.0, 1000.0, 2000.0, 3000.0, 5000.0];
-  static const List<int> prepWindowPresets = [2, 5, 10, 15];
-  static const List<int> snoozePresets = [2, 3, 5, 10];
+  static const List<int> prepWindowPresets = [2, 3, 5, 8, 10, 15, 20, 30];
+  static const List<int> snoozePresets = [2, 3, 5, 10, 15];
+  static const List<int> volumeRampPresets = [0, 5, 10, 15, 20]; // 0 = instant
+  static const List<int> maxAlarmDurationPresets = [1, 2, 3, 5, 10, 0]; // 0 = continuous
 
   // Accent Colors
   static const String colorBlue = 'blue';
@@ -98,12 +107,14 @@ class AppConstants {
   static const String soundTransit = 'transit';
   static const String soundSiren = 'siren';
   static const String soundBell = 'bell';
+  static const String soundCustom = 'custom';
 
   static const Map<String, String> soundNames = {
     soundRadar: 'Radar Pulse (Urgent)',
     soundTransit: 'Transit Arrival Chime',
     soundSiren: 'Emergency Siren',
     soundBell: 'Piercing Bell',
+    soundCustom: 'Custom Audio File',
   };
 
   static const Map<String, String> soundAssetPaths = {

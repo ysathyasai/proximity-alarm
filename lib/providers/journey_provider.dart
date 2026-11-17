@@ -524,9 +524,16 @@ class JourneyProvider with ChangeNotifier {
     // 1. Start loud looping audio and vibration with user preferences
     await _alarmService.startAlarm(
       soundId: appSettings.alarmSoundId,
+      customSoundPath: appSettings.customSoundPath,
       vibrationEnabled: appSettings.vibrationEnabled,
       vibrationPattern: appSettings.vibrationPattern,
       volumeEscalation: appSettings.volumeEscalation,
+      volumeRampSeconds: appSettings.volumeRampSeconds,
+      targetVolume: appSettings.alarmVolume,
+      maxDurationMinutes: appSettings.maxAlarmDurationMinutes,
+      onAutoDismiss: () {
+        snoozeAlarm();
+      },
     );
 
     // 2. Display urgent full screen alarm notification

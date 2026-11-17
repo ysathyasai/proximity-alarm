@@ -74,38 +74,58 @@ void main() {
     test('AppSettings V3 JSON serialization & copyWith', () {
       final defaultSettings = AppSettings();
       expect(defaultSettings.themeMode, equals(ThemeMode.system));
+      expect(defaultSettings.appThemeStyle, equals(AppThemeStyle.system));
+      expect(defaultSettings.isPitchBlack, isFalse);
       expect(defaultSettings.accentColorKey, equals(AppConstants.colorBlue));
       expect(defaultSettings.alertMode, equals(AlertMode.combined));
       expect(defaultSettings.distanceUnit, equals(DistanceUnit.metric));
       expect(defaultSettings.monitoringProfile, equals(MonitoringProfile.balanced));
-      expect(defaultSettings.snoozeDurationMinutes, equals(3));
+      expect(defaultSettings.snoozeDurationMinutes, equals(5));
       expect(defaultSettings.volumeEscalation, isTrue);
+      expect(defaultSettings.volumeRampSeconds, equals(10));
+      expect(defaultSettings.alarmVolume, equals(1.0));
+      expect(defaultSettings.maxAlarmDurationMinutes, equals(5));
       expect(defaultSettings.requireSlideToDismiss, isFalse);
 
       final updated = defaultSettings.copyWith(
-        themeMode: ThemeMode.dark,
+        appThemeStyle: AppThemeStyle.pitchBlack,
         accentColorKey: AppConstants.colorGreen,
         alertMode: AlertMode.fixedRadius,
         distanceUnit: DistanceUnit.imperial,
         monitoringProfile: MonitoringProfile.responsive,
-        snoozeDurationMinutes: 5,
+        snoozeDurationMinutes: 10,
         volumeEscalation: false,
+        volumeRampSeconds: 15,
+        alarmVolume: 0.8,
+        maxAlarmDurationMinutes: 10,
         requireSlideToDismiss: true,
         vibrationPattern: VibrationPatternType.pulse,
+        customSoundPath: '/storage/emulated/0/Music/custom_alarm.mp3',
+        customSoundTitle: 'custom_alarm.mp3',
       );
+
+      expect(updated.isPitchBlack, isTrue);
+      expect(updated.themeMode, equals(ThemeMode.dark));
 
       final json = updated.toJson();
       final fromJson = AppSettings.fromJson(json);
 
+      expect(fromJson.appThemeStyle, equals(AppThemeStyle.pitchBlack));
+      expect(fromJson.isPitchBlack, isTrue);
       expect(fromJson.themeMode, equals(ThemeMode.dark));
       expect(fromJson.accentColorKey, equals(AppConstants.colorGreen));
       expect(fromJson.alertMode, equals(AlertMode.fixedRadius));
       expect(fromJson.distanceUnit, equals(DistanceUnit.imperial));
       expect(fromJson.monitoringProfile, equals(MonitoringProfile.responsive));
-      expect(fromJson.snoozeDurationMinutes, equals(5));
+      expect(fromJson.snoozeDurationMinutes, equals(10));
       expect(fromJson.volumeEscalation, isFalse);
+      expect(fromJson.volumeRampSeconds, equals(15));
+      expect(fromJson.alarmVolume, equals(0.8));
+      expect(fromJson.maxAlarmDurationMinutes, equals(10));
       expect(fromJson.requireSlideToDismiss, isTrue);
       expect(fromJson.vibrationPattern, equals(VibrationPatternType.pulse));
+      expect(fromJson.customSoundPath, equals('/storage/emulated/0/Music/custom_alarm.mp3'));
+      expect(fromJson.customSoundTitle, equals('custom_alarm.mp3'));
     });
   });
 

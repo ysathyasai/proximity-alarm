@@ -73,7 +73,9 @@ class ProximityAlarmApp extends StatelessWidget {
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.getLightTheme(settingsProvider.accentColor),
-      darkTheme: AppTheme.getDarkTheme(settingsProvider.accentColor),
+      darkTheme: settingsProvider.isPitchBlack
+          ? AppTheme.getPitchBlackTheme(settingsProvider.accentColor)
+          : AppTheme.getDarkTheme(settingsProvider.accentColor),
       themeMode: settingsProvider.themeMode,
       home: const HomeScreen(),
     );

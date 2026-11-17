@@ -47,6 +47,7 @@ dependencies:
   intl: ^0.20.3
   uuid: ^4.6.0
   url_launcher: ^6.3.3
+  file_picker: ^13.4.0
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +73,7 @@ flutter:
 
   assets:
     - assets/sounds/
+    - assets/icons/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

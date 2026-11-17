@@ -12,6 +12,8 @@ class SettingsProvider with ChangeNotifier {
   }
 
   AppSettings get settings => _settings;
+  AppThemeStyle get appThemeStyle => _settings.appThemeStyle;
+  bool get isPitchBlack => _settings.isPitchBlack;
   ThemeMode get themeMode => _settings.themeMode;
   String get accentColorKey => _settings.accentColorKey;
   Color get accentColor => _settings.accentColor;
@@ -26,12 +28,17 @@ class SettingsProvider with ChangeNotifier {
   bool get preferOfflineGoogleMaps => _settings.preferOfflineGoogleMaps;
 
   String get alarmSoundId => _settings.alarmSoundId;
+  String? get customSoundPath => _settings.customSoundPath;
+  String? get customSoundTitle => _settings.customSoundTitle;
   VibrationPatternType get vibrationPattern => _settings.vibrationPattern;
   bool get vibrationEnabled => _settings.vibrationEnabled;
   bool get repeatAlarm => _settings.repeatAlarm;
   int get repeatIntervalMinutes => _settings.repeatIntervalMinutes;
   int get snoozeDurationMinutes => _settings.snoozeDurationMinutes;
   bool get volumeEscalation => _settings.volumeEscalation;
+  int get volumeRampSeconds => _settings.volumeRampSeconds;
+  double get alarmVolume => _settings.alarmVolume;
+  int get maxAlarmDurationMinutes => _settings.maxAlarmDurationMinutes;
   bool get requireSlideToDismiss => _settings.requireSlideToDismiss;
 
   bool get showRadiusCircle => _settings.showRadiusCircle;
@@ -48,7 +55,53 @@ class SettingsProvider with ChangeNotifier {
   }
 
   Future<void> updateThemeMode(ThemeMode mode) async {
-    _settings = _settings.copyWith(themeMode: mode);
+    final style = mode == ThemeMode.light
+        ? AppThemeStyle.light
+        : (mode == ThemeMode.dark ? AppThemeStyle.dark : AppThemeStyle.system);
+    _settings = _settings.copyWith(appThemeStyle: style, themeMode: mode);
+    notifyListeners();
+    await _repository.saveSettings(_settings);
+  }
+
+  Future<void> updateThemeStyle(AppThemeStyle style) async {
+    _settings = _settings.copyWith(appThemeStyle: style);
+    notifyListeners();
+    await _repository.saveSettings(_settings);
+  }
+
+  Future<void> setCustomSound(String path, String title) async {
+    _settings = _settings.copyWith(
+      alarmSoundId: AppConstants.soundCustom,
+      customSoundPath: path,
+      customSoundTitle: title,
+    );
+    notifyListeners();
+    await _repository.saveSettings(_settings);
+  }
+
+  Future<void> clearCustomSound() async {
+    _settings = _settings.copyWith(
+      alarmSoundId: AppConstants.soundRadar,
+      clearCustomSound: true,
+    );
+    notifyListeners();
+    await _repository.saveSettings(_settings);
+  }
+
+  Future<void> updateVolumeRampSeconds(int seconds) async {
+    _settings = _settings.copyWith(volumeRampSeconds: seconds);
+    notifyListeners();
+    await _repository.saveSettings(_settings);
+  }
+
+  Future<void> updateAlarmVolume(double volume) async {
+    _settings = _settings.copyWith(alarmVolume: volume.clamp(0.0, 1.0));
+    notifyListeners();
+    await _repository.saveSettings(_settings);
+  }
+
+  Future<void> updateMaxAlarmDuration(int minutes) async {
+    _settings = _settings.copyWith(maxAlarmDurationMinutes: minutes);
     notifyListeners();
     await _repository.saveSettings(_settings);
   }
