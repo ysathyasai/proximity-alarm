@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/geo_utils.dart';
 import '../../data/models/destination.dart';
 import '../../providers/journey_provider.dart';
 import '../../providers/saved_destinations_provider.dart';
 import '../../providers/settings_provider.dart';
 import 'destination_picker_screen.dart';
 
-class SavedDestinationsScreen extends StatelessWidget {
+class SavedDestinationsScreen extends StatefulWidget {
   const SavedDestinationsScreen({super.key});
+
+  @override
+  State<SavedDestinationsScreen> createState() =>
+      _SavedDestinationsScreenState();
+}
+
+class _SavedDestinationsScreenState extends State<SavedDestinationsScreen> {
+  String _selectedCategory = 'all';
 
   void _showAddEditDialog(BuildContext context, {Destination? existing}) {
     final settings = context.read<SettingsProvider>();
@@ -153,6 +163,12 @@ class SavedDestinationsScreen extends StatelessWidget {
     final journey = context.read<JourneyProvider>();
     final settings = context.watch<SettingsProvider>();
     final unit = settings.distanceUnit;
+    final userPos = journey.currentPosition;
+
+    final allDestinations = saved.destinations;
+    final destinations = _selectedCategory == 'all'
+        ? allDestinations
+        : allDestinations.where((d) => d.category == _selectedCategory).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -171,7 +187,7 @@ class SavedDestinationsScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: saved.destinations.isEmpty
+      body: allDestinations.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -203,99 +219,228 @@ class SavedDestinationsScreen extends StatelessWidget {
                 ],
               ),
             )
-          : ListView.separated(
-              padding: const EdgeInsets.all(20),
-              itemCount: saved.destinations.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final dest = saved.destinations[index];
-                IconData categoryIcon = Icons.place_rounded;
-                if (dest.category == 'home') categoryIcon = Icons.home_rounded;
-                if (dest.category == 'work') categoryIcon = Icons.work_rounded;
-                if (dest.category == 'station') {
-                  categoryIcon = Icons.train_rounded;
-                }
-                if (dest.category == 'favorite') {
-                  categoryIcon = Icons.star_rounded;
-                }
-
-                return Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(categoryIcon,
-                          color: theme.colorScheme.primary, size: 24),
-                    ),
-                    title: Text(
-                      dest.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          : Column(
+              children: [
+                // Category Filter Chips
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                       children: [
-                        if (dest.address.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            dest.address,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? const Color(0xFF94A3B8)
-                                  : const Color(0xFF64748B),
+                        ('all', 'All (${allDestinations.length})', Icons.dashboard_rounded),
+                        ('home', 'Home', Icons.home_rounded),
+                        ('work', 'Work', Icons.work_rounded),
+                        ('station', 'Transit', Icons.train_rounded),
+                        ('favorite', 'Favorites', Icons.star_rounded),
+                      ].map((item) {
+                        final isSelected = _selectedCategory == item.$1;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: FilterChip(
+                            avatar: Icon(
+                              item.$3,
+                              size: 16,
+                              color: isSelected
+                                  ? theme.colorScheme.primary
+                                  : (isDark
+                                      ? const Color(0xFF94A3B8)
+                                      : const Color(0xFF64748B)),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            label: Text(item.$2),
+                            selected: isSelected,
+                            onSelected: (_) {
+                              setState(() {
+                                _selectedCategory = item.$1;
+                              });
+                            },
                           ),
-                        ],
-                        const SizedBox(height: 4),
-                        Text(
-                          'Alert radius: ${Formatters.formatDistance(dest.radiusMeters, unit)}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                      ],
+                        );
+                      }).toList(),
                     ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 20),
-                          tooltip: 'Edit',
-                          onPressed: () =>
-                              _showAddEditDialog(context, existing: dest),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              size: 20, color: Color(0xFFDC2626)),
-                          tooltip: 'Delete',
-                          onPressed: () => saved.deleteDestination(dest.id),
-                        ),
-                      ],
-                    ),
-                    onTap: () {
-                      journey.selectDestination(dest);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Selected "${dest.name}" as destination!'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
                   ),
-                );
-              },
+                ),
+
+                // Destinations List
+                Expanded(
+                  child: destinations.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No places in "${_selectedCategory.toUpperCase()}" category',
+                            style: const TextStyle(fontSize: 13, color: Colors.grey),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 80),
+                          itemCount: destinations.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final dest = destinations[index];
+                            IconData categoryIcon = Icons.place_rounded;
+                            if (dest.category == 'home') categoryIcon = Icons.home_rounded;
+                            if (dest.category == 'work') categoryIcon = Icons.work_rounded;
+                            if (dest.category == 'station') categoryIcon = Icons.train_rounded;
+                            if (dest.category == 'favorite') categoryIcon = Icons.star_rounded;
+
+                            final double? distFromUser = userPos != null
+                                ? GeoUtils.calculateDistanceMeters(userPos, dest.latLng)
+                                : null;
+
+                            return Dismissible(
+                              key: Key(dest.id),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDC2626),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    Icon(Icons.delete_outline,
+                                        color: Colors.white, size: 22),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Delete',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              onDismissed: (_) {
+                                HapticFeedback.mediumImpact();
+                                saved.deleteDestination(dest.id);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Removed "${dest.name}"'),
+                                    behavior: SnackBarBehavior.floating,
+                                    action: SnackBarAction(
+                                      label: 'UNDO',
+                                      onPressed: () {
+                                        saved.addDestination(dest);
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Card(
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary
+                                          .withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(categoryIcon,
+                                        color: theme.colorScheme.primary, size: 24),
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          dest.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 15,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (distFromUser != null)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.primaryContainer,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            '${Formatters.formatDistance(distFromUser, unit)} away',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: theme.colorScheme.onPrimaryContainer,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (dest.address.isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          dest.address,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isDark
+                                                ? const Color(0xFF94A3B8)
+                                                : const Color(0xFF64748B),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Alert radius: ${Formatters.formatDistance(dest.radiusMeters, unit)}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: theme.colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined, size: 20),
+                                        tooltip: 'Edit',
+                                        onPressed: () => _showAddEditDialog(context,
+                                            existing: dest),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline,
+                                            size: 20, color: Color(0xFFDC2626)),
+                                        tooltip: 'Delete',
+                                        onPressed: () =>
+                                            saved.deleteDestination(dest.id),
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    journey.selectDestination(dest);
+                                    saved.addRecentSearch(dest);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Selected "${dest.name}" as destination!'),
+                                        duration: const Duration(seconds: 2),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'btn_add_saved',
