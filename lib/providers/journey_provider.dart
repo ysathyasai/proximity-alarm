@@ -59,6 +59,7 @@ class JourneyProvider with ChangeNotifier {
   bool _hasTriggeredAlarmThisJourney = false;
   bool _hasTriggeredEarlyWarning = false;
   DateTime? _journeyStartTime;
+  DateTime? _alarmTriggeredAt;
   double _initialDistanceMeters = 0.0;
   String? _warningMessage;
 
@@ -66,6 +67,7 @@ class JourneyProvider with ChangeNotifier {
   StreamSubscription<ServiceStatus>? _serviceStatusSubscription;
   Timer? _notificationUpdateTimer;
   Timer? _simulationTimer;
+  Timer? _snoozeTimer;
 
   JourneyProvider({
     required LocationService locationService,
@@ -249,6 +251,10 @@ class JourneyProvider with ChangeNotifier {
       _currentPosition = fix.position;
       _currentAccuracy = fix.accuracy;
       _currentSpeedMps = fix.speedMetersPerSec;
+      _currentHeading = fix.heading;
+      if (_selectedDestination != null && _routePolyline.isEmpty) {
+        _calculateInitialRoute();
+      }
       notifyListeners();
     }
   }
@@ -331,18 +337,34 @@ class JourneyProvider with ChangeNotifier {
   Future<bool> startJourney({AppSettings? settings}) async {
     if (_selectedDestination == null) return false;
 
-    // 1. Permission verification
-    final permResult = await PermissionUtils.checkAllPermissions();
+    // 1. Permission verification & proactive user request
+    var permResult = await PermissionUtils.checkAllPermissions();
     if (!permResult.isReadyForMonitoring) {
-      _warningMessage = permResult.errorMessage ?? 'Required permissions not granted.';
-      notifyListeners();
-      return false;
+      permResult = await PermissionUtils.requestPermissions();
+      if (!permResult.isReadyForMonitoring) {
+        _warningMessage = permResult.errorMessage ?? 'Please grant location and notification permissions to start.';
+        notifyListeners();
+        return false;
+      }
+    }
+
+    // Ensure we have an active GPS position fix
+    if (_currentPosition == null) {
+      final fix = await _locationService.getCurrentLocation();
+      if (fix != null) {
+        _currentPosition = fix.position;
+        _currentAccuracy = fix.accuracy;
+        _currentSpeedMps = fix.speedMetersPerSec;
+        _currentHeading = fix.heading;
+      }
     }
 
     _status = JourneyStatus.active;
     _hasTriggeredAlarmThisJourney = false;
     _hasTriggeredEarlyWarning = false;
     _journeyStartTime = DateTime.now();
+    _alarmTriggeredAt = null;
+    _snoozeTimer?.cancel();
     _warningMessage = null;
 
     if (settings != null) {
@@ -517,6 +539,8 @@ class JourneyProvider with ChangeNotifier {
   Future<void> _triggerAlarm() async {
     if (_hasTriggeredAlarmThisJourney) return;
     _hasTriggeredAlarmThisJourney = true;
+    _alarmTriggeredAt = DateTime.now();
+    _snoozeTimer?.cancel();
     _status = JourneyStatus.alarmActive;
 
     final appSettings = await _repository.loadSettings();
@@ -551,6 +575,7 @@ class JourneyProvider with ChangeNotifier {
 
   /// Dismisses active alarm and records journey completion.
   Future<void> dismissAlarm() async {
+    _snoozeTimer?.cancel();
     await _alarmService.stopAlarm();
     await _notificationService.cancelAlarmNotification();
 
@@ -562,6 +587,7 @@ class JourneyProvider with ChangeNotifier {
   /// Snoozes alarm for [minutes] then triggers again.
   Future<void> snoozeAlarm([int? minutes]) async {
     final int duration = minutes ?? _snoozeDurationMinutes;
+    _snoozeTimer?.cancel();
     await _alarmService.stopAlarm();
     await _notificationService.cancelAlarmNotification();
 
@@ -569,7 +595,7 @@ class JourneyProvider with ChangeNotifier {
     _hasTriggeredAlarmThisJourney = false; // Allow trigger again after snooze
     notifyListeners();
 
-    Timer(Duration(minutes: duration), () {
+    _snoozeTimer = Timer(Duration(minutes: duration), () {
       if (isJourneyActive && !_hasTriggeredAlarmThisJourney) {
         _triggerAlarm();
       }
@@ -580,6 +606,7 @@ class JourneyProvider with ChangeNotifier {
   Future<void> stopJourney({
     JourneyOutcome outcome = JourneyOutcome.completedNormally,
   }) async {
+    _snoozeTimer?.cancel();
     await _alarmService.stopAlarm();
     await _notificationService.cancelAlarmNotification();
     _simulationTimer?.cancel();
@@ -593,6 +620,7 @@ class JourneyProvider with ChangeNotifier {
   }
 
   Future<void> _finishJourney({required JourneyOutcome outcome}) async {
+    _snoozeTimer?.cancel();
     _locationSubscription?.cancel();
     _notificationUpdateTimer?.cancel();
     _locationService.stopTracking();
@@ -611,7 +639,7 @@ class JourneyProvider with ChangeNotifier {
         prepWindowMinutes: _prepWindowMinutes,
         outcome: outcome,
         alarmTriggered: _hasTriggeredAlarmThisJourney,
-        alarmTriggeredAt: _hasTriggeredAlarmThisJourney ? DateTime.now() : null,
+        alarmTriggeredAt: _alarmTriggeredAt ?? (_hasTriggeredAlarmThisJourney ? DateTime.now() : null),
       );
 
       await _repository.addJourneyToHistory(journey);
@@ -679,16 +707,22 @@ class JourneyProvider with ChangeNotifier {
   }
 
   void resetToIdle() {
+    _snoozeTimer?.cancel();
     _status = JourneyStatus.idle;
     _selectedDestination = null;
     _hasTriggeredAlarmThisJourney = false;
     _hasTriggeredEarlyWarning = false;
     _warningMessage = null;
+    _routePolyline = [];
+    _isRoadRoute = false;
+    _remainingDistanceMeters = 0.0;
+    _estimatedArrivalMinutes = 0;
     notifyListeners();
   }
 
   @override
   void dispose() {
+    _snoozeTimer?.cancel();
     _serviceStatusSubscription?.cancel();
     _locationSubscription?.cancel();
     _notificationUpdateTimer?.cancel();

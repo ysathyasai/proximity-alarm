@@ -19,6 +19,7 @@ class ActiveJourneyScreen extends StatefulWidget {
 
 class _ActiveJourneyScreenState extends State<ActiveJourneyScreen> {
   bool _isNightNapMode = false;
+  bool _isAlarmScreenOpen = false;
 
   void _confirmStopJourney(BuildContext context, JourneyProvider journey) {
     showDialog(
@@ -55,6 +56,7 @@ class _ActiveJourneyScreenState extends State<ActiveJourneyScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final journey = context.read<JourneyProvider>();
     final settings = context.watch<SettingsProvider>();
+    final isPitchBlack = settings.isPitchBlack;
     final unit = settings.distanceUnit;
 
     return Scaffold(
@@ -148,10 +150,12 @@ class _ActiveJourneyScreenState extends State<ActiveJourneyScreen> {
       ),
       body: Consumer<JourneyProvider>(
         builder: (context, jp, _) {
-          // If alarm triggers, navigate to AlarmScreen
-          if (jp.isAlarmActive) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.of(context).pushReplacement(
+          // If alarm triggers, navigate to AlarmScreen once
+          if (jp.isAlarmActive && !_isAlarmScreenOpen) {
+            _isAlarmScreenOpen = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              if (!context.mounted) return;
+              await Navigator.of(context).pushReplacement(
                 MaterialPageRoute(builder: (_) => const AlarmScreen()),
               );
             });
@@ -286,7 +290,7 @@ class _ActiveJourneyScreenState extends State<ActiveJourneyScreen> {
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                    color: isPitchBlack ? const Color(0xFF0C0C0C) : (isDark ? const Color(0xFF0F172A) : Colors.white),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                     boxShadow: [
                       BoxShadow(
@@ -368,7 +372,7 @@ class _ActiveJourneyScreenState extends State<ActiveJourneyScreen> {
                             child: LinearProgressIndicator(
                               value: jp.journeyProgressPercent,
                               minHeight: 6,
-                              backgroundColor: (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                              backgroundColor: isPitchBlack ? const Color(0xFF1E1E1E) : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
                               valueColor: AlwaysStoppedAnimation<Color>(
                                 isApproaching ? const Color(0xFFF59E0B) : theme.colorScheme.primary,
                               ),

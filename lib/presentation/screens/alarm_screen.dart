@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/utils/formatters.dart';
 import '../../providers/journey_provider.dart';
 import '../../providers/settings_provider.dart';
+import 'home_screen.dart';
 
 class AlarmScreen extends StatefulWidget {
   const AlarmScreen({super.key});
@@ -70,7 +71,13 @@ class _AlarmScreenState extends State<AlarmScreen>
     HapticFeedback.heavyImpact();
     await journey.dismissAlarm();
     if (mounted) {
-      Navigator.of(context).pop();
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
     }
   }
 
@@ -80,7 +87,13 @@ class _AlarmScreenState extends State<AlarmScreen>
     HapticFeedback.mediumImpact();
     await journey.snoozeAlarm(snoozeMinutes);
     if (mounted) {
-      Navigator.of(context).pop();
+      if (Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
     }
   }
 

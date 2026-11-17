@@ -28,17 +28,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentNavIndex = 0;
+  bool _isAlarmScreenOpen = false;
 
   @override
   Widget build(BuildContext context) {
     final journeyProvider = context.watch<JourneyProvider>();
 
-    // If alarm is active, present AlarmScreen immediately
-    if (journeyProvider.isAlarmActive) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.of(context).push(
+    // If alarm is active, present AlarmScreen immediately (single instance guard)
+    if (journeyProvider.isAlarmActive && !_isAlarmScreenOpen) {
+      _isAlarmScreenOpen = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!context.mounted) return;
+        await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const AlarmScreen()),
         );
+        _isAlarmScreenOpen = false;
       });
     }
 

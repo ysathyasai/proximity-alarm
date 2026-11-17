@@ -70,6 +70,7 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
     final journey = context.watch<JourneyProvider>();
     final saved = context.read<SavedDestinationsProvider>();
     final settings = context.watch<SettingsProvider>();
+    final isPitchBlack = settings.isPitchBlack;
 
     final userPos = journey.currentPosition;
     final double? distanceMeters =
@@ -82,7 +83,7 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Pick Destination'),
-        backgroundColor: (isDark ? const Color(0xFF0F172A) : Colors.white)
+        backgroundColor: (isPitchBlack ? const Color(0xFF000000) : (isDark ? const Color(0xFF0F172A) : Colors.white))
             .withValues(alpha: 0.85),
         elevation: 0,
       ),
@@ -157,7 +158,7 @@ class _DestinationPickerScreenState extends State<DestinationPickerScreen> {
               child: Container(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF0F172A) : Colors.white,
+                  color: isPitchBlack ? const Color(0xFF0C0C0C) : (isDark ? const Color(0xFF0F172A) : Colors.white),
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(24)),
                   boxShadow: [

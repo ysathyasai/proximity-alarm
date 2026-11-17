@@ -19,6 +19,7 @@ class JourneyHistoryScreen extends StatelessWidget {
     final historyProvider = context.watch<JourneyHistoryProvider>();
     final history = historyProvider.history;
     final settings = context.watch<SettingsProvider>();
+    final isPitchBlack = settings.isPitchBlack;
     final unit = settings.distanceUnit;
 
     // Analytics summary
@@ -103,7 +104,9 @@ class JourneyHistoryScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: isDark
-                            ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+                            ? (isPitchBlack
+                                ? [const Color(0xFF0C0C0C), const Color(0xFF000000)]
+                                : [const Color(0xFF1E293B), const Color(0xFF0F172A)])
                             : [Colors.white, const Color(0xFFF8FAFC)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -111,7 +114,7 @@ class JourneyHistoryScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isDark
-                            ? const Color(0xFF334155)
+                            ? (isPitchBlack ? const Color(0xFF222222) : const Color(0xFF334155))
                             : const Color(0xFFE2E8F0),
                       ),
                       boxShadow: [

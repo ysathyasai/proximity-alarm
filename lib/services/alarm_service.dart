@@ -115,7 +115,16 @@ class AlarmService {
         await _audioPlayer.play(audioSource);
       }
     } catch (_) {
-      // Audio playback fallback
+      // Primary playback failed (e.g. invalid custom audio codec or missing file)
+      // Fail-safe fallback: immediately trigger built-in synthesized radar tone
+      try {
+        await _audioPlayer.stop();
+        await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+        await _audioPlayer.setVolume(boundedTargetVolume);
+        await _audioPlayer.play(AssetSource('sounds/radar.wav'));
+      } catch (_) {
+        // Audio device unrecoverable
+      }
     }
 
     // Auto-dismiss timeout (prevents battery drain if device is left unattended)
@@ -129,19 +138,31 @@ class AlarmService {
       });
     }
 
-    // 2. Start vibration according to selected pattern
+    // 2. Start vibration according to selected pattern with hardware compatibility check
     if (vibrationEnabled &&
         vibrationPattern != VibrationPatternType.none &&
         _hasVibrator) {
       try {
         final (pattern, intensities) = _getVibrationPatternData(vibrationPattern);
-        await Vibration.vibrate(
-          pattern: pattern,
-          intensities: intensities,
-          repeat: 0, // loop from start
-        );
+        final bool hasCustom = await Vibration.hasCustomVibrationsSupport();
+        if (hasCustom && intensities.isNotEmpty) {
+          await Vibration.vibrate(
+            pattern: pattern,
+            intensities: intensities,
+            repeat: 0, // loop from start
+          );
+        } else if (pattern.isNotEmpty) {
+          await Vibration.vibrate(
+            pattern: pattern,
+            repeat: 0,
+          );
+        } else {
+          await Vibration.vibrate(duration: 1000, repeat: 0);
+        }
       } catch (_) {
-        // Vibration fallback
+        try {
+          await Vibration.vibrate(duration: 1000, repeat: 0);
+        } catch (_) {}
       }
     }
   }

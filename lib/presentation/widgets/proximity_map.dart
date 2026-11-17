@@ -72,10 +72,14 @@ class _ProximityMapState extends State<ProximityMap> {
 
   void _fitBounds() {
     if (widget.userPosition != null && widget.destinationPosition != null) {
-      final bounds = LatLngBounds(
-        widget.userPosition!,
-        widget.destinationPosition!,
-      );
+      final user = widget.userPosition!;
+      final dest = widget.destinationPosition!;
+      if ((user.latitude - dest.latitude).abs() < 0.0001 &&
+          (user.longitude - dest.longitude).abs() < 0.0001) {
+        _mapController.move(dest, 15.0);
+        return;
+      }
+      final bounds = LatLngBounds(user, dest);
       _mapController.fitCamera(
         CameraFit.bounds(
           bounds: bounds,
