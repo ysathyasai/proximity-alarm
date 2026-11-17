@@ -51,14 +51,18 @@ class MetricBadge extends StatelessWidget {
                 color: iconColor ?? theme.colorScheme.primary,
               ),
               const SizedBox(width: 6),
-              Text(
-                label,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? const Color(0xFF94A3B8)
-                      : const Color(0xFF64748B),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11,
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark
+                        ? const Color(0xFF94A3B8)
+                        : const Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

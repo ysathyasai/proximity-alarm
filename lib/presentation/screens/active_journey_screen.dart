@@ -10,8 +10,15 @@ import '../widgets/metric_badge.dart';
 import '../widgets/proximity_map.dart';
 import 'alarm_screen.dart';
 
-class ActiveJourneyScreen extends StatelessWidget {
+class ActiveJourneyScreen extends StatefulWidget {
   const ActiveJourneyScreen({super.key});
+
+  @override
+  State<ActiveJourneyScreen> createState() => _ActiveJourneyScreenState();
+}
+
+class _ActiveJourneyScreenState extends State<ActiveJourneyScreen> {
+  bool _isNightNapMode = false;
 
   void _confirmStopJourney(BuildContext context, JourneyProvider journey) {
     showDialog(
@@ -94,6 +101,21 @@ class ActiveJourneyScreen extends StatelessWidget {
           },
         ),
         actions: [
+          // Night Nap / AMOLED Dim Screen Mode
+          IconButton(
+            tooltip: _isNightNapMode ? 'Exit Night Display' : 'OLED Night Nap Display',
+            icon: Icon(
+              _isNightNapMode
+                  ? Icons.brightness_7_rounded
+                  : Icons.nightlight_round,
+              color: _isNightNapMode ? Colors.amber : null,
+            ),
+            onPressed: () {
+              setState(() {
+                _isNightNapMode = !_isNightNapMode;
+              });
+            },
+          ),
           // Open in Google Maps offline button
           IconButton(
             tooltip: 'Open in downloaded Google Maps',
@@ -140,6 +162,100 @@ class ActiveJourneyScreen extends StatelessWidget {
           final etaMinutes = jp.estimatedArrivalMinutes;
           final speed = jp.currentSpeedMps;
           final isApproaching = jp.status == JourneyStatus.approaching;
+
+          if (_isNightNapMode) {
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isNightNapMode = false;
+                });
+              },
+              child: Container(
+                color: Colors.black,
+                width: double.infinity,
+                height: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Spacer(),
+                    Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: isApproaching
+                            ? const Color(0xFFF59E0B)
+                            : const Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isApproaching
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFF10B981))
+                                .withValues(alpha: 0.6),
+                            blurRadius: 16,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      dest?.name ?? 'Selected Destination',
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      Formatters.formatDistance(remainingDist, unit),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 48,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      jp.useTimerAlert
+                          ? 'ETA: ~${Formatters.formatDurationMinutes(etaMinutes)}'
+                          : 'Monitoring Radius (< ${Formatters.formatDistance(jp.radiusMeters, unit)})',
+                      style: TextStyle(
+                        color: isApproaching
+                            ? const Color(0xFFFBBF24)
+                            : const Color(0xFF60A5FA),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.touch_app_rounded,
+                            color: Color(0xFF475569), size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'Tap anywhere to wake display',
+                          style: TextStyle(
+                            color: Color(0xFF475569),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
 
           return Column(
             children: [
