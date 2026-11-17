@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../data/models/destination.dart';
 import '../../providers/saved_destinations_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../services/geocoding_service.dart';
 
 class DestinationSearchBar extends StatefulWidget {
@@ -106,6 +107,7 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final isPitchBlack = context.watch<SettingsProvider>().isPitchBlack;
     final savedProvider = context.watch<SavedDestinationsProvider>();
     final savedDestinations = savedProvider.destinations;
     final recentSearches = savedProvider.recentSearches;
@@ -183,10 +185,14 @@ class _DestinationSearchBarState extends State<DestinationSearchBar> {
             margin: const EdgeInsets.only(top: 6),
             constraints: const BoxConstraints(maxHeight: 320),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
+              color: isDark
+                  ? (isPitchBlack ? const Color(0xFF0C0C0C) : const Color(0xFF1E293B))
+                  : Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                color: isDark
+                    ? (isPitchBlack ? const Color(0xFF222222) : const Color(0xFF334155))
+                    : const Color(0xFFE2E8F0),
               ),
               boxShadow: [
                 BoxShadow(

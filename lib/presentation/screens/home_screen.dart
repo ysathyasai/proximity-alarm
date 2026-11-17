@@ -94,6 +94,7 @@ class HomeMainView extends StatelessWidget {
     final journey = context.watch<JourneyProvider>();
     final saved = context.watch<SavedDestinationsProvider>();
     final settings = context.watch<SettingsProvider>();
+    final isPitchBlack = settings.isPitchBlack;
 
     return Scaffold(
       appBar: AppBar(
@@ -275,13 +276,13 @@ class HomeMainView extends StatelessWidget {
                     backgroundColor: isSelected
                         ? theme.colorScheme.primary.withValues(alpha: 0.15)
                         : (isDark
-                            ? const Color(0xFF1E293B)
+                            ? (isPitchBlack ? const Color(0xFF0D0D0D) : const Color(0xFF1E293B))
                             : Colors.white),
                     side: BorderSide(
                       color: isSelected
                           ? theme.colorScheme.primary
                           : (isDark
-                              ? const Color(0xFF334155)
+                              ? (isPitchBlack ? const Color(0xFF222222) : const Color(0xFF334155))
                               : const Color(0xFFCBD5E1)),
                     ),
                     onPressed: () {
